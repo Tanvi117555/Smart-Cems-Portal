@@ -1,0 +1,173 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    function getUserRole() {
+      return request.auth.token.role != null ? request.auth.token.role :
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+    
+    function isAdmin() {
+      return isAuthenticated() && (request.auth.token.role == 'admin' || getUserRole() == 'admin');
+    }
+    
+    function isFaculty() {
+      return isAuthenticated() && (request.auth.token.role == 'faculty' || getUserRole() == 'faculty');
+    }
+    
+    function isStudent() {
+      return isAuthenticated() && (request.auth.token.role == 'student' || getUserRole() == 'student');
+    }
+
+    // 1. Users collection
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+      allow update: if isAuthenticated() && (
+        isAdmin() || 
+        (request.auth.uid == userId && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'status'])))
+      );
+      allow delete: if isAdmin();
+    }
+
+    // 2. Categories & Departments
+    match /categories/{categoryId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /departments/{departmentId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // 3. Events collection
+    match /events/{eventId} {
+      // Public can read approved/published events; faculty/admin can read all
+      allow read: if resource.data.status in ['approved', 'published', 'completed'] || isAdmin() || (isFaculty() && resource.data.organizerId == request.auth.uid);
+      
+      // Faculty and Admin can create events
+      allow create: if (isFaculty() || isAdmin()) && request.resource.data.organizerId == request.auth.uid;
+      
+      // Organizer or Admin can update event (except direct approval requires admin)
+      allow update: if isAdmin() || (isFaculty() && resource.data.organizerId == request.auth.uid && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['status']) || request.resource.data.status in ['draft', 'pending']));
+      
+      allow delete: if isAdmin() || (isFaculty() && resource.data.organizerId == request.auth.uid && resource.data.status == 'draft');
+
+      // Event Subcollections: Gallery
+      match /gallery/{galleryId} {
+        allow read: if true;
+        allow create, update, delete: if isAdmin() || (isFaculty() && get(/databases/$(database)/documents/events/$(eventId)).data.organizerId == request.auth.uid);
+      }
+
+      // Event Subcollections: Feedback Forms
+      match /feedbackForms/{formId} {
+        allow read: if isAuthenticated();
+        allow create, update, delete: if isAdmin() || (isFaculty() && get(/databases/$(database)/documents/events/$(eventId)).data.organizerId == request.auth.uid);
+        
+        match /questions/{questionId} {
+          allow read: if isAuthenticated();
+          allow create, update, delete: if isAdmin() || (isFaculty() && get(/databases/$(database)/documents/events/$(eventId)).data.organizerId == request.auth.uid);
+        }
+      }
+    }
+
+    // 4. Registrations collection
+    match /registrations/{registrationId} {
+      allow read: if isAuthenticated() && (
+        resource.data.studentId == request.auth.uid ||
+        isAdmin() ||
+        (isFaculty() && get(/databases/$(database)/documents/events/$(resource.data.eventId)).data.organizerId == request.auth.uid)
+      );
+      // Registrations are primarily processed via trusted Cloud Functions / Server transactions
+      allow create: if isAuthenticated() && request.resource.data.studentId == request.auth.uid;
+      allow update: if isAdmin() || (isFaculty() && get(/databases/$(database)/documents/events/$(resource.data.eventId)).data.organizerId == request.auth.uid) || (isOwner(resource.data.studentId) && request.resource.data.status == 'cancelled');
+      allow delete: if isAdmin();
+    }
+
+    // 5. Payments collection
+    match /payments/{paymentId} {
+      allow read: if isAuthenticated() && (
+        resource.data.studentId == request.auth.uid ||
+        isAdmin() ||
+        isFaculty()
+      );
+      allow create: if isAuthenticated() && request.resource.data.studentId == request.auth.uid;
+      allow update: if isAdmin() || isFaculty();
+      allow delete: if isAdmin();
+    }
+
+    // 6. Waitlist collection
+    match /waitlist/{waitlistId} {
+      allow read: if isAuthenticated() && (
+        resource.data.studentId == request.auth.uid ||
+        isAdmin() ||
+        isFaculty()
+      );
+      allow create: if isAuthenticated() && request.resource.data.studentId == request.auth.uid;
+      allow update, delete: if isAdmin() || isFaculty() || (isAuthenticated() && resource.data.studentId == request.auth.uid);
+    }
+
+    // 7. Check-Ins collection (Live Attendance)
+    match /checkIns/{checkInId} {
+      allow read: if isAuthenticated() && (
+        resource.data.studentId == request.auth.uid ||
+        isAdmin() ||
+        isFaculty()
+      );
+      allow create, update: if isAdmin() || isFaculty();
+      allow delete: if isAdmin();
+    }
+
+    // 8. Feedback Responses & Answers
+    match /feedbackResponses/{responseId} {
+      allow read: if isAuthenticated() && (
+        resource.data.studentId == request.auth.uid ||
+        isAdmin() ||
+        isFaculty()
+      );
+      allow create: if isAuthenticated() && request.resource.data.studentId == request.auth.uid;
+      allow update: if false; // Immutable once submitted
+      allow delete: if isAdmin();
+    }
+
+    match /feedbackAnswers/{answerId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if false;
+      allow delete: if isAdmin();
+    }
+
+    // 9. Certificates collection
+    match /certificates/{certificateId} {
+      // Anyone can verify public certificates by ID
+      allow read: if true;
+      allow create, update: if isAdmin() || isFaculty();
+      allow delete: if isAdmin();
+    }
+
+    // 10. Notifications collection
+    match /notifications/{notificationId} {
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow update: if isAuthenticated() && resource.data.userId == request.auth.uid && 
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isRead', 'readAt']);
+      allow create: if isAuthenticated();
+      allow delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
+    }
+
+    // 11. Audit Logs
+    match /auditLogs/{logId} {
+      allow read: if isAdmin();
+      allow write: if isAuthenticated();
+    }
+  }
+}
