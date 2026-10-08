@@ -1,11 +1,46 @@
 const path = require('path');
 const fs = require('fs');
 
-// Check for real service account credentials
 const serviceAccountPath = process.env.FIREBASE_SERVICE_ACCOUNT_PATH ||
   path.join(__dirname, '../../serviceAccountKey.json');
 
-const hasCredentials = fs.existsSync(serviceAccountPath) || !!process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+// Resolve credentials from environment or file
+let serviceAccount = null;
+
+if (process.env.FIREBASE_SERVICE_ACCOUNT_BASE64) {
+  try {
+    const decoded = Buffer.from(process.env.FIREBASE_SERVICE_ACCOUNT_BASE64, 'base64').toString('utf8');
+    serviceAccount = JSON.parse(decoded);
+  } catch (e) {
+    console.warn('⚠️ Failed to parse FIREBASE_SERVICE_ACCOUNT_BASE64:', e.message);
+  }
+}
+
+if (!serviceAccount && process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
+  try {
+    serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
+  } catch (e) {
+    console.warn('⚠️ Failed to parse FIREBASE_SERVICE_ACCOUNT_JSON:', e.message);
+  }
+}
+
+if (!serviceAccount && process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY) {
+  serviceAccount = {
+    project_id: process.env.FIREBASE_PROJECT_ID || 'smart-cems-portal',
+    client_email: process.env.FIREBASE_CLIENT_EMAIL,
+    private_key: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n')
+  };
+}
+
+if (!serviceAccount && fs.existsSync(serviceAccountPath)) {
+  try {
+    serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, 'utf8'));
+  } catch (e) {
+    console.warn('⚠️ Failed to parse serviceAccountKey.json:', e.message);
+  }
+}
+
+const hasCredentials = !!serviceAccount;
 
 let adminExport;
 let dbExport;
@@ -22,21 +57,14 @@ if (hasCredentials) {
 
     let app;
     if (!getApps().length) {
-      if (fs.existsSync(serviceAccountPath)) {
-        const serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, 'utf8'));
-        app = initializeApp({
-          credential: cert(serviceAccount),
-          storageBucket: process.env.FIREBASE_STORAGE_BUCKET || `${serviceAccount.project_id}.appspot.com`
-        });
-        console.log('🔥 Firebase Admin initialized with service account key.');
-      } else {
-        const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
-        app = initializeApp({
-          credential: cert(serviceAccount),
-          storageBucket: process.env.FIREBASE_STORAGE_BUCKET || `${serviceAccount.project_id}.appspot.com`
-        });
-        console.log('🔥 Firebase Admin initialized with environment JSON.');
-      }
+      const bucketName = process.env.FIREBASE_STORAGE_BUCKET ||
+        (serviceAccount.project_id ? `${serviceAccount.project_id}.firebasestorage.app` : undefined);
+
+      app = initializeApp({
+        credential: cert(serviceAccount),
+        storageBucket: bucketName
+      });
+      console.log('🔥 Firebase Admin initialized with cloud credentials.');
     } else {
       app = getApps()[0];
     }
