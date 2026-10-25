@@ -4,13 +4,14 @@ import {
   Loader2, Check, X, Users, BookOpen
 } from 'lucide-react';
 import api from '../../services/api';
+import { fetchDepartments as getResilientDepartments, getCachedDepartments } from '../../services/metaService';
 import { useToast } from '../../context/ToastContext';
 import SkeletonLoader from '../../components/common/SkeletonLoader';
 import EmptyState from '../../components/common/EmptyState';
 
 const AdminDepartments = () => {
-  const [departments, setDepartments] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [departments, setDepartments] = useState(getCachedDepartments);
+  const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [modal, setModal] = useState({ open: false, isEdit: false, data: { id: null, name: '', code: '', description: '' } });
   const [deleteModal, setDeleteModal] = useState({ open: false, dept: null });
@@ -23,14 +24,13 @@ const AdminDepartments = () => {
   }, []);
 
   const fetchDepartments = async () => {
-    setLoading(true);
     try {
-      const res = await api.get('/meta/departments');
-      if (res.data.success) {
-        setDepartments(res.data.departments || []);
+      const depts = await getResilientDepartments();
+      if (depts && depts.length > 0) {
+        setDepartments(depts);
       }
     } catch (err) {
-      addToast('Failed to load departments', 'error');
+      console.warn('Failed to refresh departments, using cached baseline:', err.message);
     } finally {
       setLoading(false);
     }
@@ -47,14 +47,14 @@ const AdminDepartments = () => {
     try {
       if (modal.isEdit) {
         const res = await api.put(`/meta/departments/${modal.data.id}`, modal.data);
-        if (res.data.success) {
+        if (res?.success || res?.data?.success) {
           addToast('Department updated successfully', 'success');
           setModal({ open: false, isEdit: false, data: { id: null, name: '', code: '', description: '' } });
           fetchDepartments();
         }
       } else {
         const res = await api.post('/meta/departments', modal.data);
-        if (res.data.success) {
+        if (res?.success || res?.data?.success) {
           addToast('Department created successfully', 'success');
           setModal({ open: false, isEdit: false, data: { id: null, name: '', code: '', description: '' } });
           fetchDepartments();
@@ -72,7 +72,7 @@ const AdminDepartments = () => {
     setSubmitting(true);
     try {
       const res = await api.delete(`/meta/departments/${deleteModal.dept.id}`);
-      if (res.data.success) {
+      if (res?.success || res?.data?.success) {
         addToast('Department deleted successfully', 'success');
         setDeleteModal({ open: false, dept: null });
         fetchDepartments();

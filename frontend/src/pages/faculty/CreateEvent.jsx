@@ -11,20 +11,30 @@ import {
   Sparkles,
   ArrowLeft,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  ChevronDown
 } from 'lucide-react';
 import api from '../../services/api';
+import { fetchCategoriesAndDepartments, DEFAULT_CATEGORIES, DEFAULT_DEPARTMENTS, getCachedCategories, getCachedDepartments } from '../../services/metaService';
 import { useToast } from '../../context/ToastContext';
 
-const CreateEvent = ({ isEditing = false }) => {
+const CreateEvent = ({ isEditing = false, isEdit = false }) => {
   const { id } = useParams();
   const navigate = useNavigate();
   const toast = useToast();
 
-  const [categories, setCategories] = useState([]);
-  const [departments, setDepartments] = useState([]);
+  const isEditMode = Boolean(isEditing || isEdit || id);
+
+  const [categories, setCategories] = useState(() => {
+    const cached = getCachedCategories();
+    return Array.isArray(cached) && cached.length >= 3 ? cached : DEFAULT_CATEGORIES;
+  });
+  const [departments, setDepartments] = useState(() => {
+    const cached = getCachedDepartments();
+    return Array.isArray(cached) && cached.length >= 3 ? cached : DEFAULT_DEPARTMENTS;
+  });
   const [loading, setLoading] = useState(false);
-  const [fetchingEvent, setFetchingEvent] = useState(isEditing);
+  const [fetchingEvent, setFetchingEvent] = useState(isEditMode);
 
   // Form State
   const [title, setTitle] = useState('');
@@ -89,57 +99,84 @@ const CreateEvent = ({ isEditing = false }) => {
     { schedule_time: '10:30 AM', activity: 'Main Session / Competition', description: 'Core event proceedings' }
   ]);
 
-  // Fetch Categories and Departments
+  // Fetch Categories and Departments with resilient fallback
   useEffect(() => {
+    let isMounted = true;
     const loadMeta = async () => {
       try {
-        const [catRes, deptRes] = await Promise.all([
-          api.get('/categories'),
-          api.get('/departments')
-        ]);
-        if (catRes.success) {
-          setCategories(catRes.categories || []);
-          if (!isEditing && catRes.categories.length > 0) setCategoryId(catRes.categories[0].id);
-        }
-        if (deptRes.success) {
-          setDepartments(deptRes.departments || []);
-          if (!isEditing && deptRes.departments.length > 0) setDepartmentId(deptRes.departments[0].id);
+        const { categories: loadedCats, departments: loadedDepts } = await fetchCategoriesAndDepartments();
+        if (isMounted) {
+          if (Array.isArray(loadedCats) && loadedCats.length > 0) {
+            setCategories(loadedCats);
+            setCategoryId((prev) => (prev ? prev : (!isEditing ? loadedCats[0].id : '')));
+          } else {
+            setCategories(DEFAULT_CATEGORIES);
+          }
+          if (Array.isArray(loadedDepts) && loadedDepts.length > 0) {
+            setDepartments(loadedDepts);
+          } else {
+            setDepartments(DEFAULT_DEPARTMENTS);
+          }
         }
       } catch (e) {
-        console.error(e);
+        console.error('Error loading event metadata:', e);
+        if (isMounted) {
+          setCategories(DEFAULT_CATEGORIES);
+          setDepartments(DEFAULT_DEPARTMENTS);
+        }
       }
     };
     loadMeta();
-  }, [isEditing]);
+    return () => { isMounted = false; };
+  }, [isEditMode]);
 
   // Fetch existing event if in edit mode
   useEffect(() => {
-    if (!isEditing || !id) return;
+    if (!isEditMode || !id) return;
     const fetchEvent = async () => {
       try {
         const res = await api.get(`/events/${id}`);
         if (res.success && res.event) {
           const e = res.event;
-          setTitle(e.title || '');
+          setTitle(e.title || e.event_title || '');
           setDescription(e.description || '');
-          setCategoryId(e.category_id || '');
-          setDepartmentId(e.department_id || '');
-          setDate(e.date ? new Date(e.date).toISOString().split('T')[0] : '');
-          setStartTime(e.start_time || '');
-          setEndTime(e.end_time || '');
+          setCategoryId(e.category_id || e.categoryId || '');
+          setDepartmentId(e.department_id || e.departmentId || '');
+          
+          let parsedDate = '';
+          if (e.date) {
+            parsedDate = typeof e.date === 'string' && e.date.includes('T') ? e.date.split('T')[0] : e.date;
+          }
+          setDate(parsedDate);
+
+          setStartTime(e.start_time || e.startTime || '09:00 AM');
+          setEndTime(e.end_time || e.endTime || '05:00 PM');
           setVenue(e.venue || '');
-          setRoomNumber(e.room_number || '');
+          setRoomNumber(e.room_number || e.roomNumber || '');
           setBuilding(e.building || '');
-          setMaxParticipants(e.max_participants || 100);
-          setIsPaid(!!e.is_paid);
-          setRegistrationFee(e.registration_fee || 0);
-          setRegStart(e.registration_start ? new Date(e.registration_start).toISOString().split('T')[0] : '');
-          setRegEnd(e.registration_end ? new Date(e.registration_end).toISOString().split('T')[0] : '');
-          setExistingImage(e.image);
-          setExistingQr(e.qr_code_image);
+          setMaxParticipants(e.max_participants || e.maxParticipants || 100);
+          setIsPaid(Boolean(e.is_paid || e.fee > 0 || e.registration_fee > 0));
+          setRegistrationFee(e.registration_fee || e.fee || 0);
+
+          let parsedRegStart = '';
+          if (e.registration_start || e.registrationStart) {
+            const val = e.registration_start || e.registrationStart;
+            parsedRegStart = typeof val === 'string' && val.includes('T') ? val.split('T')[0] : val;
+          }
+          setRegStart(parsedRegStart);
+
+          let parsedRegEnd = '';
+          if (e.registration_end || e.registrationDeadline) {
+            const val = e.registration_end || e.registrationDeadline;
+            parsedRegEnd = typeof val === 'string' && val.includes('T') ? val.split('T')[0] : val;
+          }
+          setRegEnd(parsedRegEnd);
+
+          setExistingImage(e.image || e.bannerImage);
+          setExistingQr(e.qr_code_image || e.payment_qr_url || e.paymentQrUrl);
 
           if (e.rules && e.rules.length > 0) {
-            setRules(e.rules.map((r) => r.rule_text));
+            setRules(e.rules.map((r) => (typeof r === 'string' ? r : (r.rule_text || r.text || ''))).filter(Boolean));
           }
           if (e.schedule && e.schedule.length > 0) {
             setSchedule(e.schedule);
@@ -152,7 +189,7 @@ const CreateEvent = ({ isEditing = false }) => {
       }
     };
     fetchEvent();
-  }, [isEditing, id]);
+  }, [isEditMode, id]);
 
   // Dynamic Rule Handlers
   const addRule = () => setRules([...rules, '']);
@@ -190,6 +227,21 @@ const CreateEvent = ({ isEditing = false }) => {
       formData.append('description', description);
       formData.append('category_id', categoryId);
       formData.append('department_id', departmentId || '');
+
+      const selectedCat = categories.find((c) => String(c.id) === String(categoryId));
+      const selectedDept = departments.find((d) => String(d.id) === String(departmentId));
+      if (selectedCat) {
+        formData.append('category', selectedCat.name);
+        formData.append('category_name', selectedCat.name);
+      }
+      if (selectedDept) {
+        formData.append('department', selectedDept.name);
+        formData.append('department_name', selectedDept.name);
+        formData.append('department_code', selectedDept.code || '');
+      } else {
+        formData.append('department', 'Campus-Wide / All Departments');
+        formData.append('department_name', 'Campus-Wide / All Departments');
+      }
       formData.append('date', date);
       formData.append('start_time', startTime);
       formData.append('end_time', endTime);
@@ -209,15 +261,15 @@ const CreateEvent = ({ isEditing = false }) => {
       if (imageFile) formData.append('image', imageFile);
       if (qrFile) formData.append('qr_code', qrFile);
 
-      if (isEditing) {
+      if (isEditMode) {
         const res = await api.put(`/events/${id}`, formData);
-        if (res.success) {
+        if (res?.success) {
           toast.success('Event updated successfully!');
           navigate('/faculty/events');
         }
       } else {
         const res = await api.post('/events', formData);
-        if (res.success) {
+        if (res?.success) {
           toast.success(res.message || 'Event submitted for approval!');
           navigate('/faculty/events');
         }
@@ -249,7 +301,7 @@ const CreateEvent = ({ isEditing = false }) => {
         </button>
         <div>
           <h1 className="text-2xl sm:text-3xl font-extrabold font-heading text-slate-900 dark:text-white">
-            {isEditing ? 'Edit Event Proposal' : 'Create New Event Proposal'}
+            {isEditMode ? 'Edit Event Proposal' : 'Create New Event Proposal'}
           </h1>
           <p className="text-xs sm:text-sm text-slate-500">
             Submit full details, rules, schedules, and fee structures for college approval.
@@ -279,31 +331,45 @@ const CreateEvent = ({ isEditing = false }) => {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <label className="block text-xs font-bold uppercase text-slate-500">Category *</label>
-              <select
-                required
-                value={categoryId}
-                onChange={(e) => setCategoryId(e.target.value)}
-                className="w-full px-4 py-3 rounded-2xl bg-slate-50 dark:bg-navy-900 border border-slate-200 dark:border-slate-800 text-sm focus:ring-2 focus:ring-brand-500"
-              >
-                <option value="">Select Category</option>
-                {categories.map((c) => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
+              <div className="relative">
+                <select
+                  required
+                  value={categoryId}
+                  onChange={(e) => setCategoryId(e.target.value)}
+                  className="w-full px-4 pr-10 py-3 rounded-2xl bg-slate-50 dark:bg-navy-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none appearance-none cursor-pointer transition-colors"
+                >
+                  <option value="" disabled className="bg-white dark:bg-navy-900 text-slate-400">
+                    Select Category
+                  </option>
+                  {categories.map((c) => (
+                    <option key={c.id} value={c.id} className="bg-white dark:bg-navy-900 text-slate-900 dark:text-white py-1.5">
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none z-10" />
+              </div>
             </div>
 
             <div className="space-y-1.5">
               <label className="block text-xs font-bold uppercase text-slate-500">Department</label>
-              <select
-                value={departmentId}
-                onChange={(e) => setDepartmentId(e.target.value)}
-                className="w-full px-4 py-3 rounded-2xl bg-slate-50 dark:bg-navy-900 border border-slate-200 dark:border-slate-800 text-sm focus:ring-2 focus:ring-brand-500"
-              >
-                <option value="">Campus-Wide / All Departments</option>
-                {departments.map((d) => (
-                  <option key={d.id} value={d.id}>{d.name} ({d.code})</option>
-                ))}
-              </select>
+              <div className="relative">
+                <select
+                  value={departmentId}
+                  onChange={(e) => setDepartmentId(e.target.value)}
+                  className="w-full px-4 pr-10 py-3 rounded-2xl bg-slate-50 dark:bg-navy-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none appearance-none cursor-pointer transition-colors"
+                >
+                  <option value="" className="bg-white dark:bg-navy-900 text-slate-400">
+                    Campus-Wide / All Departments
+                  </option>
+                  {departments.map((d) => (
+                    <option key={d.id} value={d.id} className="bg-white dark:bg-navy-900 text-slate-900 dark:text-white py-1.5">
+                      {d.name} {d.code ? `(${d.code})` : ''}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none z-10" />
+              </div>
             </div>
           </div>
 

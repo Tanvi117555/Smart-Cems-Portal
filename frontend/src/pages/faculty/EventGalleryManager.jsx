@@ -1,16 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useParams } from 'react-router-dom';
 import { Image as ImageIcon, Upload, Trash2, Plus, AlertCircle, X } from 'lucide-react';
 import api from '../../services/api';
 import { useToast } from '../../context/ToastContext';
 import EmptyState from '../../components/common/EmptyState';
 
 const EventGalleryManager = () => {
+  const { id } = useParams();
   const [searchParams] = useSearchParams();
   const toast = useToast();
 
   const [events, setEvents] = useState([]);
-  const [selectedEventId, setSelectedEventId] = useState(searchParams.get('eventId') || '');
+  const [selectedEventId, setSelectedEventId] = useState(id || searchParams.get('eventId') || '');
   const [galleryImages, setGalleryImages] = useState([]);
   const [loading, setLoading] = useState(false);
 
@@ -93,7 +94,7 @@ const EventGalleryManager = () => {
     if (!window.confirm('Delete this photo from the event gallery?')) return;
 
     try {
-      const res = await api.delete(`/gallery/${id}`);
+      const res = await api.delete(`/gallery/${id}${selectedEventId ? `?eventId=${selectedEventId}` : ''}`);
       if (res.success) {
         toast.success('Photo removed.');
         setGalleryImages((prev) => prev.filter((img) => img.id !== id));

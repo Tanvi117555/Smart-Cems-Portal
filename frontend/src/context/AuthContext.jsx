@@ -15,29 +15,47 @@ import api from '../services/api';
 const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
+  // Read immediate cached user to eliminate blank/loading delay on app start
+  const cachedUser = (() => {
+    try {
+      const stored = localStorage.getItem('cems_user');
+      return stored ? JSON.parse(stored) : null;
+    } catch {
+      return null;
+    }
+  })();
+
+  const [user, setUser] = useState(cachedUser);
   const [firebaseUser, setFirebaseUser] = useState(null);
-  const [role, setRole] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [role, setRole] = useState(cachedUser?.role || null);
+  // If we already have a cached session, don't block UI with full-page spinner
+  const [loading, setLoading] = useState(!cachedUser);
 
   // Sync auth state with Firebase Auth
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      setLoading(true);
       if (currentUser) {
         setFirebaseUser(currentUser);
         try {
           const idToken = await currentUser.getIdToken();
           localStorage.setItem('cems_token', idToken);
 
-          // Get Custom Claims (Role)
-          const tokenResult = await currentUser.getIdTokenResult(true);
-          let userRole = tokenResult.claims.role;
+          // Get Custom Claims (Role) quickly without forcing expensive server refresh unless necessary
+          const tokenResult = await currentUser.getIdTokenResult(false);
+          let userRole = tokenResult.claims?.role;
+
+          // Quick timeout helper (max 2 seconds) so cold/slow backends never freeze the UI
+          const fetchWithTimeout = (promise, ms = 2000) => {
+            return Promise.race([
+              promise,
+              new Promise((_, reject) => setTimeout(() => reject(new Error('Auth sync timeout')), ms))
+            ]);
+          };
 
           // Fetch profile data: First try backend Admin SDK (/auth/me), fallback to client Firestore or token claims
           let profileData = {};
           try {
-            const meRes = await api.get('/auth/me');
+            const meRes = await fetchWithTimeout(api.get('/auth/me'), 2000);
             if (meRes && meRes.success && meRes.user) {
               profileData = meRes.user;
               if (!userRole) userRole = profileData.role;
@@ -45,13 +63,13 @@ export const AuthProvider = ({ children }) => {
           } catch (backendErr) {
             try {
               const userDocRef = doc(db, 'users', currentUser.uid);
-              const userDocSnap = await getDoc(userDocRef);
+              const userDocSnap = await fetchWithTimeout(getDoc(userDocRef), 2000);
               if (userDocSnap.exists()) {
                 profileData = userDocSnap.data();
                 if (!userRole) userRole = profileData.role;
               }
             } catch (firestoreErr) {
-              console.warn('Firestore client rule prevented direct getDoc, using custom claims');
+              // Fallback to token claims or email heuristic
             }
           }
 
@@ -75,8 +93,7 @@ export const AuthProvider = ({ children }) => {
           setUser(fullUser);
           localStorage.setItem('cems_user', JSON.stringify(fullUser));
         } catch (err) {
-          console.error('Error synchronizing user session:', err);
-          // Don't log out if user has valid Firebase credentials
+          console.warn('Fast auth synchronization fallback used:', err.message);
           const fallbackRole = currentUser.email === 'admin@cems.edu' ? 'admin' : (currentUser.email.includes('faculty') ? 'faculty' : 'student');
           const fallbackUser = {
             uid: currentUser.uid,
@@ -88,6 +105,8 @@ export const AuthProvider = ({ children }) => {
           setRole(fallbackRole);
           setUser(fallbackUser);
           localStorage.setItem('cems_user', JSON.stringify(fallbackUser));
+        } finally {
+          setLoading(false);
         }
       } else {
         setFirebaseUser(null);
@@ -95,8 +114,8 @@ export const AuthProvider = ({ children }) => {
         setRole(null);
         localStorage.removeItem('cems_token');
         localStorage.removeItem('cems_user');
+        setLoading(false);
       }
-      setLoading(false);
     });
 
     return () => unsubscribe();
@@ -111,12 +130,27 @@ export const AuthProvider = ({ children }) => {
     } catch (err) {
       console.warn('Direct Firebase Auth sign in failed, trying backend login bridge:', err.code || err.message);
 
-      // 2. Try Backend Login Bridge (generates Firebase Custom Token via Admin SDK)
+      // 2. Try Backend Login Bridge (generates Firebase Custom Token via Admin SDK or JWT)
       try {
         const backendLoginRes = await api.post('/auth/login', { email: email.trim(), password });
-        if (backendLoginRes && backendLoginRes.success && backendLoginRes.customToken) {
-          const customUserCred = await signInWithCustomToken(auth, backendLoginRes.customToken);
-          return customUserCred.user;
+        if (backendLoginRes && backendLoginRes.success) {
+          if (backendLoginRes.customToken) {
+            try {
+              const customUserCred = await signInWithCustomToken(auth, backendLoginRes.customToken);
+              return customUserCred.user;
+            } catch (tokenErr) {
+              console.warn('signInWithCustomToken offline fallback:', tokenErr.message);
+            }
+          }
+
+          if (backendLoginRes.token && backendLoginRes.user) {
+            const loggedUser = backendLoginRes.user;
+            localStorage.setItem('cems_token', backendLoginRes.token);
+            localStorage.setItem('cems_user', JSON.stringify(loggedUser));
+            setUser(loggedUser);
+            setRole(loggedUser.role);
+            return loggedUser;
+          }
         }
       } catch (backendErr) {
         console.warn('Backend login fallback error:', backendErr.message);

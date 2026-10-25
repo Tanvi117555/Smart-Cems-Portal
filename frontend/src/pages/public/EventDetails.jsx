@@ -59,6 +59,7 @@ const EventDetails = () => {
 
   // Lightbox Modal State
   const [activeImage, setActiveImage] = useState(null);
+  const [gallery, setGallery] = useState([]);
 
   // Real-time Student Eligibility Status
   const [eligibility, setEligibility] = useState(null);
@@ -99,6 +100,16 @@ const EventDetails = () => {
         .catch(() => {});
     }
   }, [id, isAuthenticated, user]);
+
+  useEffect(() => {
+    if (id) {
+      api.get(`/gallery/${id}`)
+        .then((res) => {
+          if (res?.success) setGallery(res.images || []);
+        })
+        .catch(() => {});
+    }
+  }, [id]);
 
   // Handle Dynamic Team Member Input
   const handleMemberChange = (index, value) => {
@@ -337,6 +348,40 @@ const EventDetails = () => {
                   </li>
                 ))}
               </ul>
+            </div>
+          )}
+
+          {/* Photo Gallery */}
+          {gallery && gallery.length > 0 && (
+            <div className="p-6 sm:p-8 rounded-3xl glass-panel border border-slate-200/80 dark:border-slate-800 space-y-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-bold font-heading text-slate-900 dark:text-white">
+                  Event Photo Gallery
+                </h2>
+                <span className="text-xs font-semibold text-slate-500">
+                  {gallery.length} photos
+                </span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {gallery.map((img, idx) => (
+                  <div
+                    key={img.id || idx}
+                    onClick={() => setActiveImage(img)}
+                    className="group relative aspect-video rounded-2xl overflow-hidden border border-slate-200/60 dark:border-slate-800 bg-slate-100 dark:bg-navy-900 cursor-pointer shadow-sm hover:shadow-md transition-all"
+                  >
+                    <img
+                      src={img.image_url || img.imageUrl}
+                      alt={img.caption || 'Event snapshot'}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    />
+                    {img.caption && (
+                      <div className="absolute inset-x-0 bottom-0 p-2 bg-gradient-to-t from-black/80 via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
+                        <p className="text-[11px] text-white truncate font-medium">{img.caption}</p>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>
@@ -620,6 +665,36 @@ const EventDetails = () => {
           </div>
         )}
       </AnimatePresence>
+
+      {/* Lightbox Modal */}
+      {activeImage && (
+        <div
+          onClick={() => setActiveImage(null)}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md animate-in fade-in"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="relative max-w-4xl max-h-[90vh] flex flex-col items-center"
+          >
+            <button
+              onClick={() => setActiveImage(null)}
+              className="absolute -top-12 right-0 p-2 text-white/80 hover:text-white rounded-full bg-white/10 hover:bg-white/20 transition-colors"
+            >
+              <X className="w-6 h-6" />
+            </button>
+            <img
+              src={activeImage.image_url || activeImage.imageUrl}
+              alt={activeImage.caption || 'Event image'}
+              className="max-h-[80vh] w-auto rounded-2xl object-contain shadow-2xl border border-white/10"
+            />
+            {activeImage.caption && (
+              <p className="text-white text-sm font-medium mt-3 text-center bg-black/60 px-4 py-1.5 rounded-full backdrop-blur-sm">
+                {activeImage.caption}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

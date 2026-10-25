@@ -25,44 +25,75 @@ const getEvents = async (req, res) => {
       limit = 12
     } = req.query;
 
-    let queryRef = db.collection('events');
-
-    // Filter by status: public only sees approved / published unless admin
-    if (status && status !== 'all') {
-      queryRef = queryRef.where('status', '==', status);
-    } else if (!req.user || req.user.role !== 'admin') {
-      queryRef = queryRef.where('status', 'in', ['approved', 'published', 'completed']);
-    }
-
-    if (category && category !== 'all') {
-      queryRef = queryRef.where('category', '==', category);
-    }
-
-    if (department && department !== 'all') {
-      queryRef = queryRef.where('department', '==', department);
-    }
-
-    const snapshot = await queryRef.get();
+    const snapshot = await db.collection('events').get();
     let events = [];
 
     snapshot.forEach(doc => {
       const data = doc.data();
-      events.push({ id: doc.id, ...data });
+      events.push({
+        id: doc.id,
+        ...data,
+        event_title: data.title || data.event_title,
+        title: data.title || data.event_title,
+        start_time: data.startTime || data.start_time,
+        startTime: data.startTime || data.start_time,
+        end_time: data.endTime || data.end_time,
+        endTime: data.endTime || data.end_time,
+        max_participants: data.maxParticipants || data.max_participants || 100,
+        maxParticipants: data.maxParticipants || data.max_participants || 100,
+        registered_count: data.seatsFilled || data.registered_count || 0,
+        seatsFilled: data.seatsFilled || data.registered_count || 0,
+        registration_fee: data.fee || data.registration_fee || 0,
+        fee: data.fee || data.registration_fee || 0,
+        image: data.bannerImage || data.image,
+        bannerImage: data.bannerImage || data.image
+      });
     });
 
-    // Client-side filtering for properties not indexed together
+    // 1. Status Filter
+    if (status && status !== 'all') {
+      events = events.filter(e => e.status === status);
+    } else if (!req.user || req.user.role !== 'admin') {
+      events = events.filter(e => ['approved', 'published', 'completed'].includes(e.status));
+    }
+
+    // 2. Category Filter
+    if (category && category !== 'all') {
+      const catLower = category.toLowerCase();
+      events = events.filter(e =>
+        (e.category && e.category.toLowerCase() === catLower) ||
+        (e.category_slug && e.category_slug.toLowerCase() === catLower) ||
+        (e.category_name && e.category_name.toLowerCase() === catLower) ||
+        String(e.category_id) === category
+      );
+    }
+
+    // 3. Department Filter
+    if (department && department !== 'all') {
+      const deptLower = department.toLowerCase();
+      events = events.filter(e =>
+        (e.department && e.department.toLowerCase() === deptLower) ||
+        (e.department_name && e.department_name.toLowerCase() === deptLower) ||
+        (e.department_code && e.department_code.toLowerCase() === deptLower) ||
+        String(e.department_id) === department
+      );
+    }
+
+    // 4. Paid / Free Filter
     if (is_paid !== undefined && is_paid !== '') {
       const paidBool = is_paid === 'true' || is_paid === '1';
       events = events.filter(e => Boolean(e.is_paid || e.fee > 0) === paidBool);
     }
 
+    // 5. Search Filter
     if (search && search.trim() !== '') {
       const term = search.trim().toLowerCase();
       events = events.filter(e =>
         (e.title && e.title.toLowerCase().includes(term)) ||
         (e.description && e.description.toLowerCase().includes(term)) ||
         (e.venue && e.venue.toLowerCase().includes(term)) ||
-        (e.organizerName && e.organizerName.toLowerCase().includes(term))
+        (e.organizerName && e.organizerName.toLowerCase().includes(term)) ||
+        (e.organizer_name && e.organizer_name.toLowerCase().includes(term))
       );
     }
 
@@ -108,7 +139,25 @@ const getFeaturedEvents = async (req, res) => {
 
     const events = [];
     snapshot.forEach(doc => {
-      events.push({ id: doc.id, ...doc.data() });
+      const data = doc.data();
+      events.push({
+        id: doc.id,
+        ...data,
+        event_title: data.title || data.event_title,
+        title: data.title || data.event_title,
+        start_time: data.startTime || data.start_time,
+        startTime: data.startTime || data.start_time,
+        end_time: data.endTime || data.end_time,
+        endTime: data.endTime || data.end_time,
+        max_participants: data.maxParticipants || data.max_participants || 100,
+        maxParticipants: data.maxParticipants || data.max_participants || 100,
+        registered_count: data.seatsFilled || data.registered_count || 0,
+        seatsFilled: data.seatsFilled || data.registered_count || 0,
+        registration_fee: data.fee || data.registration_fee || 0,
+        fee: data.fee || data.registration_fee || 0,
+        image: data.bannerImage || data.image,
+        bannerImage: data.bannerImage || data.image
+      });
     });
 
     return res.json({ success: true, events });
@@ -130,7 +179,25 @@ const getEventById = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Event not found.' });
     }
 
-    const eventData = { id: eventDoc.id, ...eventDoc.data() };
+    const rawData = eventDoc.data();
+    const eventData = {
+      id: eventDoc.id,
+      ...rawData,
+      event_title: rawData.title || rawData.event_title,
+      title: rawData.title || rawData.event_title,
+      start_time: rawData.startTime || rawData.start_time,
+      startTime: rawData.startTime || rawData.start_time,
+      end_time: rawData.endTime || rawData.end_time,
+      endTime: rawData.endTime || rawData.end_time,
+      max_participants: rawData.maxParticipants || rawData.max_participants || 100,
+      maxParticipants: rawData.maxParticipants || rawData.max_participants || 100,
+      registered_count: rawData.seatsFilled || rawData.registered_count || 0,
+      seatsFilled: rawData.seatsFilled || rawData.registered_count || 0,
+      registration_fee: rawData.fee || rawData.registration_fee || 0,
+      fee: rawData.fee || rawData.registration_fee || 0,
+      image: rawData.bannerImage || rawData.image,
+      bannerImage: rawData.bannerImage || rawData.image
+    };
 
     // Check if current user is registered
     let isRegistered = false;
@@ -145,7 +212,15 @@ const getEventById = async (req, res) => {
       const activeDoc = regSnapshot.docs.find(d => d.data().status !== 'cancelled');
       if (activeDoc) {
         isRegistered = true;
-        registrationData = { id: activeDoc.id, ...activeDoc.data() };
+        const d = activeDoc.data();
+        registrationData = {
+          id: activeDoc.id,
+          ...d,
+          registration_id: d.registrationId || d.registration_id,
+          registrationId: d.registrationId || d.registration_id,
+          payment_status: d.paymentStatus || d.payment_status,
+          paymentStatus: d.paymentStatus || d.payment_status
+        };
       }
     }
 
@@ -420,6 +495,39 @@ const updateEvent = async (req, res) => {
     }
 
     await db.collection('events').doc(eventId).update(updates);
+
+    // Notify all active attendees about the event update
+    try {
+      const regSnap = await db.collection('registrations')
+        .where('eventId', '==', eventId)
+        .get();
+
+      const activeRegs = regSnap.docs.filter(d => ['confirmed', 'approved', 'pending'].includes(d.data().status));
+      if (activeRegs.length > 0) {
+        const batch = db.batch();
+        const updateTitle = updates.title || existingData.title;
+        const updateVenue = updates.venue || existingData.venue;
+        const updateDate = updates.date || existingData.date;
+        const now = new Date().toISOString();
+
+        activeRegs.forEach(rDoc => {
+          const reg = rDoc.data();
+          const notifRef = db.collection('notifications').doc();
+          batch.set(notifRef, {
+            userId: reg.studentId,
+            title: `📅 Event Update: "${updateTitle}"`,
+            message: `Event details updated. Scheduled for ${updateDate} at ${updateVenue}.`,
+            type: 'info',
+            link: `/events/${eventId}`,
+            isRead: false,
+            createdAt: now
+          });
+        });
+        await batch.commit();
+      }
+    } catch (notifErr) {
+      console.warn('Attendee notification warning on updateEvent:', notifErr.message);
+    }
 
     return res.json({
       success: true,

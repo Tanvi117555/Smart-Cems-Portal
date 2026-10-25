@@ -85,3 +85,14 @@
 button, a, input, select, textarea {
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
+
+/* Ensure native select dropdown options are visible and high-contrast across all OS & themes */
+select option {
+  background-color: #0f172a;
+  color: #f8fafc;
+}
+
+html:not(.dark) select option {
+  background-color: #ffffff;
+  color: #0f172a;
+}

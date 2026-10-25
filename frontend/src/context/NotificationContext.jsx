@@ -50,36 +50,78 @@ export const NotificationProvider = ({ children }) => {
     return () => unsubscribe();
   }, [isAuthenticated, user?.uid]);
 
-  // Mark single notification as read in Firestore
-  const markAsRead = async (id) => {
+  // API Fallback fetcher
+  const fetchNotifications = useCallback(async () => {
+    if (!isAuthenticated) return;
+    setLoading(true);
     try {
-      const notifRef = doc(db, 'notifications', id);
-      await updateDoc(notifRef, {
-        isRead: true,
-        readAt: new Date().toISOString()
-      });
+      const res = await api.get('/notifications');
+      if (res?.success) {
+        setNotifications(res.notifications || []);
+        setUnreadCount(res.unreadCount || 0);
+      }
     } catch (e) {
-      console.error('Error marking notification read:', e);
+      console.warn('API fetchNotifications fallback warning:', e.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [isAuthenticated]);
+
+  // Mark single notification as read in Firestore and backend API
+  const markAsRead = async (id) => {
+    // Optimistic local update
+    setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true, is_read: 1 } : n));
+    setUnreadCount(prev => Math.max(0, prev - 1));
+
+    try {
+      await api.patch(`/notifications/${id}/read`);
+    } catch (e) {
+      try {
+        const notifRef = doc(db, 'notifications', id);
+        await updateDoc(notifRef, {
+          isRead: true,
+          readAt: new Date().toISOString()
+        });
+      } catch (err) {
+        console.error('Error marking notification read:', err);
+      }
     }
   };
 
-  // Mark all as read in Firestore
+  // Mark all as read in Firestore and backend API
   const markAllAsRead = async () => {
+    setNotifications(prev => prev.map(n => ({ ...n, isRead: true, is_read: 1 })));
+    setUnreadCount(0);
+
     try {
-      const unreadList = notifications.filter(n => !n.isRead);
-      if (unreadList.length === 0) return;
-
-      const batch = writeBatch(db);
-      const now = new Date().toISOString();
-
-      unreadList.forEach(n => {
-        const nRef = doc(db, 'notifications', n.id);
-        batch.update(nRef, { isRead: true, readAt: now });
-      });
-
-      await batch.commit();
+      await api.patch('/notifications/read-all');
     } catch (e) {
-      console.error('Error marking all notifications read:', e);
+      try {
+        const unreadList = notifications.filter(n => !n.isRead);
+        if (unreadList.length === 0) return;
+
+        const batch = writeBatch(db);
+        const now = new Date().toISOString();
+
+        unreadList.forEach(n => {
+          const nRef = doc(db, 'notifications', n.id);
+          batch.update(nRef, { isRead: true, readAt: now });
+        });
+
+        await batch.commit();
+      } catch (err) {
+        console.error('Error marking all notifications read:', err);
+      }
+    }
+  };
+
+  // Delete / Dismiss notification
+  const deleteNotification = async (id) => {
+    setNotifications(prev => prev.filter(n => n.id !== id));
+    try {
+      await api.delete(`/notifications/${id}`);
+    } catch (e) {
+      console.error('Error deleting notification:', e);
     }
   };
 
@@ -89,8 +131,10 @@ export const NotificationProvider = ({ children }) => {
         notifications,
         unreadCount,
         loading,
+        fetchNotifications,
         markAsRead,
-        markAllAsRead
+        markAllAsRead,
+        deleteNotification
       }}
     >
       {children}

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Search, Filter, SlidersHorizontal, RotateCcw, Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
 import api from '../../services/api';
+import { fetchCategoriesAndDepartments, DEFAULT_CATEGORIES, DEFAULT_DEPARTMENTS, getCachedCategories, getCachedDepartments } from '../../services/metaService';
 import EventCard from '../../components/events/EventCard';
 import { EventCardSkeleton } from '../../components/common/SkeletonLoader';
 import EmptyState from '../../components/common/EmptyState';
@@ -15,8 +16,14 @@ const EventsDiscovery = () => {
   const [loading, setLoading] = useState(true);
 
   // Filter options
-  const [categories, setCategories] = useState([]);
-  const [departments, setDepartments] = useState([]);
+  const [categories, setCategories] = useState(() => {
+    const cached = getCachedCategories();
+    return Array.isArray(cached) && cached.length > 0 ? cached : DEFAULT_CATEGORIES;
+  });
+  const [departments, setDepartments] = useState(() => {
+    const cached = getCachedDepartments();
+    return Array.isArray(cached) && cached.length > 0 ? cached : DEFAULT_DEPARTMENTS;
+  });
 
   // URL States
   const search = searchParams.get('search') || '';
@@ -26,21 +33,28 @@ const EventsDiscovery = () => {
   const sort = searchParams.get('sort') || 'upcoming';
   const page = parseInt(searchParams.get('page') || '1', 10);
 
-  // Fetch Categories & Departments
+  // Fetch Categories & Departments with resilient fallback
   useEffect(() => {
+    let isMounted = true;
     const fetchMetadata = async () => {
       try {
-        const [catRes, deptRes] = await Promise.all([
-          api.get('/categories'),
-          api.get('/departments')
-        ]);
-        if (catRes.success) setCategories(catRes.categories || []);
-        if (deptRes.success) setDepartments(deptRes.departments || []);
+        const { categories: loadedCats, departments: loadedDepts } = await fetchCategoriesAndDepartments();
+        if (isMounted) {
+          if (Array.isArray(loadedCats) && loadedCats.length > 0) setCategories(loadedCats);
+          else setCategories(DEFAULT_CATEGORIES);
+          if (Array.isArray(loadedDepts) && loadedDepts.length > 0) setDepartments(loadedDepts);
+          else setDepartments(DEFAULT_DEPARTMENTS);
+        }
       } catch (err) {
         console.error('Error fetching filters', err);
+        if (isMounted) {
+          setCategories(DEFAULT_CATEGORIES);
+          setDepartments(DEFAULT_DEPARTMENTS);
+        }
       }
     };
     fetchMetadata();
+    return () => { isMounted = false; };
   }, []);
 
   // Fetch Events when filters change
@@ -51,8 +65,7 @@ const EventsDiscovery = () => {
         const params = {
           page,
           limit: 9,
-          sort,
-          status: 'published'
+          sort
         };
         if (search) params.search = search;
         if (category && category !== 'all') params.category = category;

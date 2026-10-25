@@ -6,6 +6,7 @@ import {
   CheckCircle2, ArrowRight, ShieldAlert, Sparkles
 } from 'lucide-react';
 import api from '../../services/api';
+import { fetchCategoriesAndDepartments, getCachedCategories, getCachedDepartments } from '../../services/metaService';
 import { useToast } from '../../context/ToastContext';
 import Badge from '../../components/common/Badge';
 import EmptyState from '../../components/common/EmptyState';
@@ -16,8 +17,8 @@ const AdminEvents = () => {
   const initialStatus = searchParams.get('status') || 'all';
 
   const [events, setEvents] = useState([]);
-  const [categories, setCategories] = useState([]);
-  const [departments, setDepartments] = useState([]);
+  const [categories, setCategories] = useState(getCachedCategories);
+  const [departments, setDepartments] = useState(getCachedDepartments);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState(initialStatus);
@@ -43,12 +44,9 @@ const AdminEvents = () => {
 
   const fetchMetadata = async () => {
     try {
-      const [catsRes, deptsRes] = await Promise.all([
-        api.get('/meta/categories'),
-        api.get('/meta/departments')
-      ]);
-      if (catsRes.data.success) setCategories(catsRes.data.categories || []);
-      if (deptsRes.data.success) setDepartments(deptsRes.data.departments || []);
+      const { categories: loadedCats, departments: loadedDepts } = await fetchCategoriesAndDepartments();
+      if (loadedCats && loadedCats.length > 0) setCategories(loadedCats);
+      if (loadedDepts && loadedDepts.length > 0) setDepartments(loadedDepts);
     } catch (err) {
       console.error('Error loading metadata:', err);
     }
@@ -59,11 +57,12 @@ const AdminEvents = () => {
     try {
       // Pass status: 'all' to ensure backend returns pending, published, rejected, and draft events
       const res = await api.get('/events', { params: { limit: 100, status: 'all' } });
-      if (res.data.success) {
-        setEvents(res.data.events || []);
+      const loaded = res?.events || res?.data?.events || [];
+      if (res?.success || res?.data?.success || Array.isArray(loaded)) {
+        setEvents(loaded);
       }
     } catch (err) {
-      addToast('Failed to load events', 'error');
+      addToast(err.message || 'Failed to load events', 'error');
     } finally {
       setLoading(false);
     }
@@ -73,12 +72,12 @@ const AdminEvents = () => {
     try {
       setActionLoading(eventId);
       const res = await api.patch(`/events/${eventId}/approve`);
-      if (res.data.success) {
-        addToast('Event approved successfully and published to student directory!', 'success');
+      if (res?.success || res?.data?.success) {
+        addToast(res.message || 'Event approved successfully and published to student directory!', 'success');
         fetchEvents();
       }
     } catch (err) {
-      addToast(err.response?.data?.message || 'Failed to approve event', 'error');
+      addToast(err.message || 'Failed to approve event', 'error');
     } finally {
       setActionLoading(null);
     }
@@ -92,15 +91,16 @@ const AdminEvents = () => {
     try {
       setActionLoading(rejectModal.eventId);
       const res = await api.patch(`/events/${rejectModal.eventId}/reject`, {
+        reason: rejectModal.reason.trim(),
         rejection_reason: rejectModal.reason.trim()
       });
-      if (res.data.success) {
+      if (res?.success || res?.data?.success) {
         addToast('Event marked as rejected and faculty coordinator notified', 'info');
         setRejectModal({ open: false, eventId: null, reason: '' });
         fetchEvents();
       }
     } catch (err) {
-      addToast(err.response?.data?.message || 'Failed to reject event', 'error');
+      addToast(err.message || 'Failed to reject event', 'error');
     } finally {
       setActionLoading(null);
     }
@@ -111,13 +111,13 @@ const AdminEvents = () => {
     try {
       setActionLoading(deleteModal.event.id);
       const res = await api.delete(`/events/${deleteModal.event.id}`);
-      if (res.data.success) {
+      if (res?.success || res?.data?.success) {
         addToast(`Event "${deleteModal.event.title}" deleted`, 'success');
         setDeleteModal({ open: false, event: null });
         fetchEvents();
       }
     } catch (err) {
-      addToast(err.response?.data?.message || 'Failed to delete event', 'error');
+      addToast(err.message || 'Failed to delete event', 'error');
     } finally {
       setActionLoading(null);
     }

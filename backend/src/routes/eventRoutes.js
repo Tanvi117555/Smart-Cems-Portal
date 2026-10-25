@@ -19,16 +19,39 @@ const {
 const { verifyToken, authorizeRoles } = require('../middleware/authMiddleware');
 const upload = require('../middleware/uploadMiddleware');
 
+const { auth, db } = require('../config/firebase');
+
 // Soft auth helper to detect logged-in student for event details
-const softAuth = (req, res, next) => {
+const softAuth = async (req, res, next) => {
   const authHeader = req.headers.authorization;
   if (authHeader && authHeader.startsWith('Bearer ')) {
+    const token = authHeader.split(' ')[1];
     try {
-      const token = authHeader.split(' ')[1];
-      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'cems_super_secret_jwt_key_2026_production_grade_token_secure');
-      req.user = decoded;
+      const decoded = await auth.verifyIdToken(token);
+      let userData = {};
+      try {
+        const userDoc = await db.collection('users').doc(decoded.uid).get();
+        if (userDoc.exists) userData = userDoc.data();
+      } catch (err) {
+        // Continue with token payload
+      }
+      req.user = {
+        id: decoded.uid,
+        uid: decoded.uid,
+        email: decoded.email || userData.email,
+        name: userData.name || decoded.name || 'User',
+        role: decoded.role || userData.role || 'student',
+        department_id: userData.department_id || userData.departmentId || null,
+        department_name: userData.department_name || userData.departmentName || null,
+        ...userData
+      };
     } catch (e) {
-      // Ignore token decode error for public views
+      try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'cems_super_secret_jwt_key_2026_production_grade_token_secure');
+        req.user = decoded;
+      } catch (jwtErr) {
+        // Ignore token decode error for public views
+      }
     }
   }
   next();

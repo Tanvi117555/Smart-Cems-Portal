@@ -5,7 +5,10 @@ const { db } = require('../config/firebase');
  */
 const uploadGalleryImages = async (req, res) => {
   try {
-    const { event_id, caption, imageUrl, images = [] } = req.body;
+    const event_id = req.body.event_id || req.body.eventId;
+    const caption = req.body.caption || '';
+    const imageUrl = req.body.imageUrl;
+    const images = req.body.images || [];
     const userId = req.user.id;
 
     if (!event_id) {
@@ -19,16 +22,30 @@ const uploadGalleryImages = async (req, res) => {
     }
 
     const imageList = [];
+
+    // Process files uploaded via multipart FormData (multer)
+    if (req.files && req.files.length > 0) {
+      req.files.forEach(file => {
+        const fileUrl = `/uploads/${file.filename}`;
+        imageList.push({ imageUrl: fileUrl, caption: caption || file.originalname });
+      });
+    }
+
     if (imageUrl) {
       imageList.push({ imageUrl, caption: caption || '' });
     }
     if (Array.isArray(images)) {
       images.forEach(img => {
-        imageList.push({
-          imageUrl: typeof img === 'string' ? img : img.imageUrl,
-          caption: (typeof img === 'object' && img.caption) ? img.caption : (caption || '')
-        });
+        if (typeof img === 'string') {
+          imageList.push({ imageUrl: img, caption: caption || '' });
+        } else if (img && img.imageUrl) {
+          imageList.push({ imageUrl: img.imageUrl, caption: img.caption || caption || '' });
+        }
       });
+    }
+
+    if (imageList.length === 0) {
+      return res.status(400).json({ success: false, message: 'No images provided for gallery upload.' });
     }
 
     const batch = db.batch();
@@ -123,24 +140,40 @@ const getGlobalGallery = async (req, res) => {
 const deleteGalleryImage = async (req, res) => {
   try {
     const { id } = req.params;
-    const { eventId } = req.query;
+    let eventId = req.query.eventId || req.query.event_id;
 
-    if (!eventId) {
-      return res.status(400).json({ success: false, message: 'Event ID required to locate gallery item.' });
+    let targetDocRef = null;
+
+    if (eventId) {
+      const imgRef = db.collection('events').doc(eventId).collection('gallery').doc(id);
+      const doc = await imgRef.get();
+      if (doc.exists) {
+        targetDocRef = imgRef;
+      }
+    } else {
+      // Find across events
+      const eventsSnap = await db.collection('events').get();
+      for (const evDoc of eventsSnap.docs) {
+        const potentialRef = evDoc.ref.collection('gallery').doc(id);
+        const doc = await potentialRef.get();
+        if (doc.exists) {
+          targetDocRef = potentialRef;
+          eventId = evDoc.id;
+          break;
+        }
+      }
     }
 
-    const imgRef = db.collection('events').doc(eventId).collection('gallery').doc(id);
-    const imgDoc = await imgRef.get();
-
-    if (!imgDoc.exists) {
-      return res.status(404).json({ success: false, message: 'Image not found.' });
+    if (!targetDocRef) {
+      return res.status(404).json({ success: false, message: 'Image not found in gallery.' });
     }
 
+    const imgDoc = await targetDocRef.get();
     if (req.user.role !== 'admin' && imgDoc.data().uploaded_by !== req.user.id) {
       return res.status(403).json({ success: false, message: 'Unauthorized to delete this photo.' });
     }
 
-    await imgRef.delete();
+    await targetDocRef.delete();
 
     return res.json({ success: true, message: 'Photo deleted from gallery.' });
   } catch (error) {

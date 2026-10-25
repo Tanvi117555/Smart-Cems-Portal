@@ -93,9 +93,12 @@ function App() {
         <Route path="events/create" element={<CreateEvent />} />
         <Route path="events/:id/edit" element={<CreateEvent isEdit={true} />} />
         <Route path="events/:id/participants" element={<EventParticipants />} />
+        <Route path="participants" element={<EventParticipants />} />
         <Route path="scan-qr" element={<QRScannerPage />} />
         <Route path="events/:id/feedback" element={<FacultyFeedback />} />
+        <Route path="feedback" element={<FacultyFeedback />} />
         <Route path="events/:id/gallery" element={<EventGalleryManager />} />
+        <Route path="gallery" element={<EventGalleryManager />} />
         <Route path="reports" element={<FacultyReports />} />
         <Route path="profile" element={<ProfilePage />} />
         <Route path="notifications" element={<NotificationsPage />} />

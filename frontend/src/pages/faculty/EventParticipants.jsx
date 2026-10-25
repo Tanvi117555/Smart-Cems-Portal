@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useSearchParams, Link } from 'react-router-dom';
+import { useSearchParams, useParams, Link } from 'react-router-dom';
 import {
   Users,
   Search,
@@ -11,7 +11,8 @@ import {
   X,
   AlertCircle,
   ExternalLink,
-  ChevronLeft
+  ChevronLeft,
+  Award
 } from 'lucide-react';
 import api from '../../services/api';
 import { useToast } from '../../context/ToastContext';
@@ -20,11 +21,12 @@ import EmptyState from '../../components/common/EmptyState';
 import { TableSkeleton } from '../../components/common/SkeletonLoader';
 
 const EventParticipants = () => {
+  const { id } = useParams();
   const [searchParams] = useSearchParams();
   const toast = useToast();
 
   const [events, setEvents] = useState([]);
-  const [selectedEventId, setSelectedEventId] = useState(searchParams.get('eventId') || '');
+  const [selectedEventId, setSelectedEventId] = useState(id || searchParams.get('eventId') || '');
   const [participants, setParticipants] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -34,6 +36,32 @@ const EventParticipants = () => {
   const [verifyingPayment, setVerifyingPayment] = useState(null);
   const [rejectionReason, setRejectionReason] = useState('');
   const [processing, setProcessing] = useState(false);
+
+  // Certificate Issuance Modal
+  const [showCertModal, setShowCertModal] = useState(false);
+  const [certTitle, setCertTitle] = useState('Certificate of Participation');
+  const [issuingCerts, setIssuingCerts] = useState(false);
+
+  const handleIssueCertificates = async () => {
+    if (!selectedEventId) return;
+    setIssuingCerts(true);
+    try {
+      const res = await api.post('/certificates/generate', {
+        eventId: selectedEventId,
+        customTitle: certTitle.trim() || 'Certificate of Participation'
+      });
+      if (res.success) {
+        toast.success(res.message || 'Certificates generated and published for participants!');
+        setShowCertModal(false);
+      } else {
+        toast.error(res.message || 'Failed to issue certificates.');
+      }
+    } catch (err) {
+      toast.error(err.message || 'Error generating certificates.');
+    } finally {
+      setIssuingCerts(false);
+    }
+  };
 
   // 1. Fetch faculty events list
   useEffect(() => {
@@ -173,6 +201,14 @@ const EventParticipants = () => {
             >
               <FileText className="w-3.5 h-3.5 text-brand-500" />
               <span>CSV</span>
+            </button>
+
+            <button
+              onClick={() => setShowCertModal(true)}
+              className="px-3.5 py-2 rounded-xl text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 shadow-sm transition-all flex items-center gap-1.5"
+            >
+              <Award className="w-3.5 h-3.5" />
+              <span>Issue Certificates</span>
             </button>
 
             <button
@@ -418,6 +454,78 @@ const EventParticipants = () => {
               >
                 <CheckCircle2 className="w-4 h-4" />
                 <span>Verify & Confirm Pass</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Issue Certificates Modal */}
+      {showCertModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in">
+          <div className="relative w-full max-w-md rounded-3xl glass-panel border border-slate-200 dark:border-slate-800 shadow-2xl p-6 sm:p-8 space-y-5">
+            <button
+              onClick={() => setShowCertModal(false)}
+              className="absolute top-5 right-5 p-2 rounded-xl text-slate-400 hover:text-slate-900 dark:hover:text-white"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-3">
+              <div className="p-3 rounded-2xl bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400">
+                <Award className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold font-heading text-slate-900 dark:text-white">
+                  Issue Certificates
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Generate digital verifiable certificates for confirmed/attended participants.
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                Certificate Title
+              </label>
+              <input
+                type="text"
+                value={certTitle}
+                onChange={(e) => setCertTitle(e.target.value)}
+                placeholder="e.g. Certificate of Participation"
+                className="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-navy-900 border border-slate-200 dark:border-slate-800 text-xs font-medium focus:ring-2 focus:ring-indigo-500"
+              />
+              <p className="text-[11px] text-slate-400">
+                Each attendee receives an authentic verification code and PDF download link on their student dashboard.
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowCertModal(false)}
+                className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-navy-800"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={issuingCerts}
+                onClick={handleIssueCertificates}
+                className="px-5 py-2.5 rounded-xl text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 shadow-md transition-all flex items-center gap-2"
+              >
+                {issuingCerts ? (
+                  <>
+                    <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    <span>Generating...</span>
+                  </>
+                ) : (
+                  <>
+                    <Award className="w-4 h-4" />
+                    <span>Generate & Distribute</span>
+                  </>
+                )}
               </button>
             </div>
           </div>

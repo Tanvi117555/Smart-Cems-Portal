@@ -47,9 +47,9 @@ const Sidebar = ({ isMobile, onClose }) => {
     { name: 'My Managed Events', path: '/faculty/events', icon: Calendar },
     { name: 'Gate QR Check-In', path: '/faculty/scan-qr', icon: QrCode },
     { name: 'Create New Event', path: '/faculty/events/create', icon: PlusCircle },
-    { name: 'Attendee Roster', path: '/faculty/events', icon: UserCheck },
-    { name: 'Feedback Builder', path: '/faculty/events', icon: MessageSquare },
-    { name: 'Event Gallery', path: '/faculty/events', icon: ImageIcon },
+    { name: 'Attendee Roster', path: '/faculty/participants', icon: UserCheck },
+    { name: 'Feedback Builder', path: '/faculty/feedback', icon: MessageSquare },
+    { name: 'Event Gallery', path: '/faculty/gallery', icon: ImageIcon },
     { name: 'PDF Reports', path: '/faculty/reports', icon: FileText },
     { name: 'Profile Settings', path: '/profile', icon: User },
   ];

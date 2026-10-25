@@ -5,6 +5,7 @@ import {
   Cpu, Users, Sparkles, Video, Mic
 } from 'lucide-react';
 import api from '../../services/api';
+import { fetchCategories as getResilientCategories, DEFAULT_CATEGORIES, getCachedCategories } from '../../services/metaService';
 import { useToast } from '../../context/ToastContext';
 import SkeletonLoader from '../../components/common/SkeletonLoader';
 import EmptyState from '../../components/common/EmptyState';
@@ -22,8 +23,11 @@ const AVAILABLE_ICONS = [
 ];
 
 const AdminCategories = () => {
-  const [categories, setCategories] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [categories, setCategories] = useState(() => {
+    const cached = getCachedCategories();
+    return Array.isArray(cached) && cached.length > 0 ? cached : DEFAULT_CATEGORIES;
+  });
+  const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [modal, setModal] = useState({ open: false, isEdit: false, data: { id: null, name: '', slug: '', icon: 'Tag', description: '' } });
   const [deleteModal, setDeleteModal] = useState({ open: false, category: null });
@@ -36,14 +40,16 @@ const AdminCategories = () => {
   }, []);
 
   const fetchCategories = async () => {
-    setLoading(true);
     try {
-      const res = await api.get('/meta/categories');
-      if (res.data.success) {
-        setCategories(res.data.categories || []);
+      const cats = await getResilientCategories();
+      if (Array.isArray(cats) && cats.length > 0) {
+        setCategories(cats);
+      } else {
+        setCategories(DEFAULT_CATEGORIES);
       }
     } catch (err) {
-      addToast('Failed to load categories', 'error');
+      console.warn('Failed to refresh categories, using cached baseline:', err.message);
+      setCategories(DEFAULT_CATEGORIES);
     } finally {
       setLoading(false);
     }
@@ -60,14 +66,14 @@ const AdminCategories = () => {
     try {
       if (modal.isEdit) {
         const res = await api.put(`/meta/categories/${modal.data.id}`, modal.data);
-        if (res.data.success) {
+        if (res?.success || res?.data?.success) {
           addToast('Category updated successfully', 'success');
           setModal({ open: false, isEdit: false, data: { id: null, name: '', slug: '', icon: 'Tag', description: '' } });
           fetchCategories();
         }
       } else {
         const res = await api.post('/meta/categories', modal.data);
-        if (res.data.success) {
+        if (res?.success || res?.data?.success) {
           addToast('Category created successfully', 'success');
           setModal({ open: false, isEdit: false, data: { id: null, name: '', slug: '', icon: 'Tag', description: '' } });
           fetchCategories();
@@ -85,7 +91,7 @@ const AdminCategories = () => {
     setSubmitting(true);
     try {
       const res = await api.delete(`/meta/categories/${deleteModal.category.id}`);
-      if (res.data.success) {
+      if (res?.success || res?.data?.success) {
         addToast('Category deleted successfully', 'success');
         setDeleteModal({ open: false, category: null });
         fetchCategories();

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useParams } from 'react-router-dom';
 import {
   MessageSquare,
   PlusCircle,
@@ -29,12 +29,13 @@ import EmptyState from '../../components/common/EmptyState';
 const COLORS = ['#4f46e5', '#7c3aed', '#10b981', '#f59e0b', '#ec4899', '#06b6d4'];
 
 const FacultyFeedback = () => {
+  const { id } = useParams();
   const [searchParams] = useSearchParams();
   const toast = useToast();
 
   const [activeTab, setActiveTab] = useState('analytics'); // 'builder' or 'analytics'
   const [events, setEvents] = useState([]);
-  const [selectedEventId, setSelectedEventId] = useState(searchParams.get('eventId') || '');
+  const [selectedEventId, setSelectedEventId] = useState(id || searchParams.get('eventId') || '');
 
   // Form Builder State
   const [formTitle, setFormTitle] = useState('');

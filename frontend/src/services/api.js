@@ -3,7 +3,7 @@ import { auth } from '../firebase/config';
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || '/api',
-  timeout: 30000,
+  timeout: 12000,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -38,7 +38,32 @@ api.interceptors.request.use(
 
 // Global response interceptor
 api.interceptors.response.use(
-  (response) => response.data,
+  (response) => {
+    // Detect if Vercel rewritten an API call into the SPA's HTML document (index.html)
+    if (typeof response.data === 'string' && response.data.trim().startsWith('<!DOCTYPE html')) {
+      const url = response.config?.url || 'API';
+      return Promise.reject(new Error(`Backend service unavailable for ${url} (SPA rewrite detected)`));
+    }
+
+    const data = response.data;
+
+    // Attach non-enumerable 'data' reference to self if data is a plain JSON object,
+    // so legacy components calling res.data.success and modern components calling res.success both work!
+    if (data && typeof data === 'object' && !(data instanceof Blob) && !Array.isArray(data) && data.data === undefined) {
+      try {
+        Object.defineProperty(data, 'data', {
+          value: data,
+          writable: true,
+          enumerable: false,
+          configurable: true
+        });
+      } catch (e) {
+        // Ignore object sealing issues
+      }
+    }
+
+    return data;
+  },
   (error) => {
     if (error.response && error.response.status === 401) {
       const currentPath = window.location.pathname;

@@ -29,7 +29,13 @@ const getFeedbackForm = async (req, res) => {
     questionsSnapshot.forEach(doc => {
       const q = doc.data();
       if (!q.isArchived) {
-        questions.push({ id: doc.id, ...q });
+        questions.push({
+          id: doc.id,
+          ...q,
+          question_text: q.questionText || q.question_text || '',
+          question_type: q.questionType || q.question_type || 'rating',
+          is_required: q.required !== undefined ? q.required : (q.is_required !== undefined ? q.is_required : true)
+        });
       }
     });
 
@@ -160,7 +166,9 @@ const saveFeedbackForm = async (req, res) => {
 const submitFeedbackResponse = async (req, res) => {
   try {
     const studentId = req.user.id;
-    const { formId, eventId, answers } = req.body;
+    const formId = req.body.formId || req.body.form_id;
+    const eventId = req.body.eventId || req.body.event_id;
+    const answers = req.body.answers;
 
     if (!formId || !answers || !Array.isArray(answers)) {
       return res.status(400).json({ success: false, message: 'Form ID and answers array are required.' });

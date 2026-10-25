@@ -4,6 +4,7 @@ import {
   Users, DollarSign, Loader2, CheckCircle2, Building2
 } from 'lucide-react';
 import api from '../../services/api';
+import { fetchDepartments as getResilientDepartments, getCachedDepartments } from '../../services/metaService';
 import { useToast } from '../../context/ToastContext';
 import Badge from '../../components/common/Badge';
 import EmptyState from '../../components/common/EmptyState';
@@ -11,7 +12,7 @@ import SkeletonLoader from '../../components/common/SkeletonLoader';
 
 const AdminReports = () => {
   const [events, setEvents] = useState([]);
-  const [departments, setDepartments] = useState([]);
+  const [departments, setDepartments] = useState(getCachedDepartments);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [deptFilter, setDeptFilter] = useState('all');
@@ -27,12 +28,13 @@ const AdminReports = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [eventsRes, deptsRes] = await Promise.all([
-        api.get('/events', { params: { limit: 100 } }),
-        api.get('/meta/departments')
+      const [eventsRes, loadedDepts] = await Promise.all([
+        api.get('/events', { params: { limit: 100, status: 'all' } }),
+        getResilientDepartments()
       ]);
-      if (eventsRes.data.success) setEvents(eventsRes.data.events || []);
-      if (deptsRes.data.success) setDepartments(deptsRes.data.departments || []);
+      const loadedEvents = eventsRes?.events || eventsRes?.data?.events || [];
+      setEvents(loadedEvents);
+      if (loadedDepts && loadedDepts.length > 0) setDepartments(loadedDepts);
     } catch (err) {
       addToast('Failed to load events for reporting', 'error');
     } finally {
@@ -47,7 +49,10 @@ const AdminReports = () => {
         responseType: 'blob'
       });
 
-      const blob = new Blob([response.data], { type: 'application/pdf' });
+      const blob = (response instanceof Blob) 
+        ? response 
+        : (response.data instanceof Blob ? response.data : new Blob([response.data || response], { type: 'application/pdf' }));
+
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;

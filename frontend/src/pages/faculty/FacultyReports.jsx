@@ -25,8 +25,9 @@ const FacultyReports = () => {
     setLoading(true);
     try {
       const res = await api.get('/events/my');
-      if (res.data.success) {
-        setEvents(res.data.events || []);
+      const loaded = res?.events || res?.data?.events || [];
+      if (res?.success || res?.data?.success || Array.isArray(loaded)) {
+        setEvents(loaded);
       }
     } catch (err) {
       addToast('Failed to load events for reporting', 'error');
@@ -43,7 +44,10 @@ const FacultyReports = () => {
       });
 
       // Create download link for PDF blob
-      const blob = new Blob([response.data], { type: 'application/pdf' });
+      const blob = (response instanceof Blob)
+        ? response
+        : (response.data instanceof Blob ? response.data : new Blob([response.data || response], { type: 'application/pdf' }));
+
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;

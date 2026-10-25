@@ -1,5 +1,27 @@
 const { db } = require('../config/firebase');
 
+const DEFAULT_FALLBACK_CATEGORIES = [
+  { id: '1', name: 'Technical', slug: 'technical', icon: 'Code', description: 'Hackathons, coding, AI workshops' },
+  { id: '2', name: 'Cultural', slug: 'cultural', icon: 'Music', description: 'Music, drama, dance festivals' },
+  { id: '3', name: 'Sports', slug: 'sports', icon: 'Trophy', description: 'Inter-college tournaments and athletic meets' },
+  { id: '4', name: 'Arts & Media', slug: 'arts', icon: 'Palette', description: 'Photography, sketching, graphic design' },
+  { id: '5', name: 'Academic', slug: 'academic', icon: 'GraduationCap', description: 'Symposiums, paper presentations, guest lectures' },
+  { id: '6', name: 'Competitions', slug: 'competitions', icon: 'Flame', description: 'Debates, quizzes, business pitches' },
+  { id: '7', name: 'Workshop', slug: 'workshop', icon: 'Cpu', description: 'Hands-on skill building bootcamps' },
+  { id: '8', name: 'Seminar', slug: 'seminar', icon: 'BookOpen', description: 'Distinguished lectures and research talks' }
+];
+
+const DEFAULT_FALLBACK_DEPARTMENTS = [
+  { id: '1', name: 'Computer Science & Engineering', code: 'CSE', description: 'Department of Computer Science and Engineering' },
+  { id: '2', name: 'Information Technology', code: 'IT', description: 'Department of Information Technology' },
+  { id: '3', name: 'Electronics & Telecommunication', code: 'EXTC', description: 'Department of Electronics and Telecommunication Engineering' },
+  { id: '4', name: 'Mechanical Engineering', code: 'MECH', description: 'Department of Mechanical Engineering' },
+  { id: '5', name: 'Biotechnology', code: 'BIOTECH', description: 'Department of Biotechnology' },
+  { id: '6', name: 'Management & Business Studies', code: 'BMS', description: 'Department of Management Studies' },
+  { id: '7', name: 'Civil Engineering', code: 'CIVIL', description: 'Department of Civil Engineering' },
+  { id: '8', name: 'Electronics & Communication', code: 'ECE', description: 'Department of Electronics and Communication' }
+];
+
 // --- CATEGORIES ---
 const getCategories = async (req, res) => {
   try {
@@ -8,22 +30,15 @@ const getCategories = async (req, res) => {
     snapshot.forEach(doc => categories.push({ id: doc.id, ...doc.data() }));
 
     if (categories.length === 0) {
-      // Default initial categories if none exist in Firestore
-      categories = [
-        { id: 'cat-tech', name: 'Technical', slug: 'technical', icon: 'Code', description: 'Hackathons, coding, AI workshops' },
-        { id: 'cat-cult', name: 'Cultural', slug: 'cultural', icon: 'Music', description: 'Music, drama, dance festivals' },
-        { id: 'cat-sport', name: 'Sports', slug: 'sports', icon: 'Trophy', description: 'Inter-college tournaments and athletic meets' },
-        { id: 'cat-work', name: 'Workshop', slug: 'workshop', icon: 'Cpu', description: 'Hands-on skill building bootcamps' },
-        { id: 'cat-sem', name: 'Seminar', slug: 'seminar', icon: 'BookOpen', description: 'Distinguished lectures and research talks' },
-        { id: 'cat-comp', name: 'Competition', slug: 'competition', icon: 'Award', description: 'Quizzes, debates, and design challenges' }
-      ];
+      categories = [...DEFAULT_FALLBACK_CATEGORIES];
     }
 
     categories.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
     return res.json({ success: true, categories });
   } catch (error) {
-    console.error('GetCategories Error:', error);
-    return res.status(500).json({ success: false, message: 'Failed to retrieve categories.' });
+    console.error('GetCategories Error:', error.message || error);
+    const categories = [...DEFAULT_FALLBACK_CATEGORIES].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    return res.json({ success: true, categories, fallback: true });
   }
 };
 
@@ -85,21 +100,15 @@ const getDepartments = async (req, res) => {
     snapshot.forEach(doc => departments.push({ id: doc.id, ...doc.data() }));
 
     if (departments.length === 0) {
-      // Default departments fallback
-      departments = [
-        { id: 'dept-cs', name: 'Computer Science & Engineering', code: 'CSE', description: 'CS, AI/ML, and Software Systems' },
-        { id: 'dept-ece', name: 'Electronics & Communication', code: 'ECE', description: 'VLSI, Embedded Systems, Signal Processing' },
-        { id: 'dept-mech', name: 'Mechanical Engineering', code: 'MECH', description: 'Robotics, Thermodynamics, Mechatronics' },
-        { id: 'dept-mba', name: 'Management Studies & MBA', code: 'MBA', description: 'Finance, Marketing, Entrepreneurship' },
-        { id: 'dept-civil', name: 'Civil Engineering', code: 'CIVIL', description: 'Structural, Environmental, Geotech' }
-      ];
+      departments = [...DEFAULT_FALLBACK_DEPARTMENTS];
     }
 
     departments.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
     return res.json({ success: true, departments });
   } catch (error) {
-    console.error('GetDepartments Error:', error);
-    return res.status(500).json({ success: false, message: 'Failed to retrieve departments.' });
+    console.error('GetDepartments Error:', error.message || error);
+    const departments = [...DEFAULT_FALLBACK_DEPARTMENTS].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    return res.json({ success: true, departments, fallback: true });
   }
 };
 

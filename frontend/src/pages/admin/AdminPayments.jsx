@@ -29,11 +29,12 @@ const AdminPayments = () => {
     setLoading(true);
     try {
       const res = await api.get('/payments');
-      if (res.data.success) {
-        setPayments(res.data.payments || []);
+      const loaded = res?.payments || res?.data?.payments || [];
+      if (res?.success || res?.data?.success || Array.isArray(loaded)) {
+        setPayments(loaded);
       }
     } catch (err) {
-      addToast('Failed to load payment transactions', 'error');
+      addToast(err.message || 'Failed to load payment transactions', 'error');
     } finally {
       setLoading(false);
     }
@@ -43,12 +44,12 @@ const AdminPayments = () => {
     try {
       setActionLoading(paymentId);
       const res = await api.patch(`/payments/${paymentId}/verify`);
-      if (res.data.success) {
-        addToast('Payment verified! Registration is now confirmed.', 'success');
+      if (res?.success || res?.data?.success) {
+        addToast(res.message || 'Payment verified! Registration is now confirmed.', 'success');
         fetchPayments();
       }
     } catch (err) {
-      addToast(err.response?.data?.message || 'Verification failed', 'error');
+      addToast(err.message || 'Verification failed', 'error');
     } finally {
       setActionLoading(null);
     }
@@ -62,15 +63,16 @@ const AdminPayments = () => {
     try {
       setActionLoading(rejectModal.paymentId);
       const res = await api.patch(`/payments/${rejectModal.paymentId}/reject`, {
+        reason: rejectModal.remarks.trim(),
         remarks: rejectModal.remarks.trim()
       });
-      if (res.data.success) {
-        addToast('Payment rejected and student notified', 'info');
+      if (res?.success || res?.data?.success) {
+        addToast(res.message || 'Payment rejected and student notified', 'info');
         setRejectModal({ open: false, paymentId: null, remarks: '' });
         fetchPayments();
       }
     } catch (err) {
-      addToast(err.response?.data?.message || 'Rejection failed', 'error');
+      addToast(err.message || 'Rejection failed', 'error');
     } finally {
       setActionLoading(null);
     }

@@ -225,7 +225,25 @@ const getMyRegistrations = async (req, res) => {
     const registrations = [];
 
     for (const doc of snapshot.docs) {
-      const reg = { id: doc.id, ...doc.data() };
+      const d = doc.data();
+      const reg = {
+        id: doc.id,
+        ...d,
+        registration_id: d.registrationId || d.registration_id,
+        registrationId: d.registrationId || d.registration_id,
+        event_id: d.eventId || d.event_id,
+        eventId: d.eventId || d.event_id,
+        student_id: d.studentId || d.student_id,
+        studentId: d.studentId || d.student_id,
+        student_name: d.studentName || d.student_name,
+        studentName: d.studentName || d.student_name,
+        student_roll_id: d.studentRollId || d.student_roll_id,
+        studentRollId: d.studentRollId || d.student_roll_id,
+        payment_status: d.paymentStatus || d.payment_status || (d.is_paid ? 'pending' : 'free'),
+        paymentStatus: d.paymentStatus || d.payment_status || (d.is_paid ? 'pending' : 'free'),
+        department_name: d.departmentName || d.department_name || 'General',
+        departmentName: d.departmentName || d.department_name || 'General'
+      };
 
       // Fetch corresponding event details
       if (reg.eventId) {
@@ -233,16 +251,46 @@ const getMyRegistrations = async (req, res) => {
         if (evDoc.exists) {
           const evData = evDoc.data();
           reg.event_title = evData.title;
+          reg.eventTitle = evData.title;
           reg.event_date = evData.date;
+          reg.eventDate = evData.date;
           reg.event_start_time = evData.startTime;
           reg.event_end_time = evData.endTime;
           reg.venue = evData.venue;
           reg.room_number = evData.room_number;
-          reg.event_image = evData.bannerImage;
-          reg.registration_fee = evData.fee || 0;
+          reg.event_image = evData.bannerImage || evData.image;
+          reg.registration_fee = evData.fee || evData.registration_fee || 0;
           reg.is_paid = evData.is_paid;
           reg.category_name = evData.category;
-          reg.department_name = evData.department;
+          reg.department_name = evData.department || reg.department_name;
+
+          // Check if event has active feedback form
+          try {
+            const formSnap = await db.collection('events').doc(reg.eventId)
+              .collection('feedbackForms')
+              .where('status', 'in', ['active', 'published'])
+              .limit(1)
+              .get();
+
+            if (!formSnap.empty) {
+              const activeForm = formSnap.docs[0];
+              reg.feedback_form_id = activeForm.id;
+              reg.feedbackFormId = activeForm.id;
+
+              const fbSnap = await db.collection('feedbackResponses')
+                .where('formId', '==', activeForm.id)
+                .where('studentId', '==', studentId)
+                .limit(1)
+                .get();
+
+              if (!fbSnap.empty) {
+                reg.submitted_feedback_id = fbSnap.docs[0].id;
+                reg.submittedFeedbackId = fbSnap.docs[0].id;
+              }
+            }
+          } catch (e) {
+            // Ignore feedback form probe warning
+          }
         }
       }
 
@@ -271,7 +319,8 @@ const getEventParticipants = async (req, res) => {
     }
 
     const event = eventDoc.data();
-    if (req.user.role !== 'admin' && event.organizerId !== req.user.id) {
+    const userId = req.user.id || req.user.uid;
+    if (req.user.role !== 'admin' && event.organizerId !== userId && event.organizer_id !== userId) {
       return res.status(403).json({ success: false, message: 'Unauthorized to view attendee roster.' });
     }
 
@@ -281,7 +330,23 @@ const getEventParticipants = async (req, res) => {
 
     const participants = [];
     snapshot.forEach(doc => {
-      participants.push({ id: doc.id, ...doc.data() });
+      const d = doc.data();
+      participants.push({
+        id: doc.id,
+        ...d,
+        registration_id: d.registrationId || d.registration_id,
+        registrationId: d.registrationId || d.registration_id,
+        student_name: d.studentName || d.student_name,
+        studentName: d.studentName || d.student_name,
+        student_email: d.studentEmail || d.student_email,
+        studentEmail: d.studentEmail || d.student_email,
+        student_roll_id: d.studentRollId || d.student_roll_id,
+        studentRollId: d.studentRollId || d.student_roll_id,
+        payment_status: d.paymentStatus || d.payment_status,
+        paymentStatus: d.paymentStatus || d.payment_status,
+        department_name: d.departmentName || d.department_name,
+        departmentName: d.departmentName || d.department_name
+      });
     });
 
     participants.sort((a, b) => new Date(b.registeredAt || 0) - new Date(a.registeredAt || 0));

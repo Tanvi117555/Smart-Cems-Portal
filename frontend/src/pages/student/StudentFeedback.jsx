@@ -25,13 +25,15 @@ const StudentFeedback = () => {
         const res = await api.get('/registrations/my');
         if (res.success) {
           const todayStr = new Date().toISOString().split('T')[0];
-          const pastEvents = (res.registrations || []).filter(
-            (r) => new Date(r.event_date).toISOString().split('T')[0] <= todayStr && r.status === 'confirmed'
-          );
+          const pastEvents = (res.registrations || []).filter((r) => {
+            const dateStr = r.event_date ? new Date(r.event_date).toISOString().split('T')[0] : '';
+            return dateStr <= todayStr && (r.status === 'confirmed' || r.status === 'approved');
+          });
           setRegistrations(pastEvents);
 
           if (!selectedEventId && pastEvents.length > 0) {
-            setSelectedEventId(pastEvents[0].event_id.toString());
+            const firstId = pastEvents[0].event_id || pastEvents[0].eventId;
+            if (firstId) setSelectedEventId(firstId.toString());
           }
         }
       } catch (err) {
@@ -107,12 +109,17 @@ const StudentFeedback = () => {
     setSubmitting(true);
     try {
       const payloadAnswers = Object.entries(answers).map(([qId, val]) => ({
-        question_id: parseInt(qId, 10),
-        answer: val
+        question_id: qId,
+        questionId: qId,
+        answer: val,
+        answerText: Array.isArray(val) ? val.join(', ') : String(val)
       }));
 
       const res = await api.post('/feedback/submit', {
         form_id: formData.id,
+        formId: formData.id,
+        event_id: selectedEventId,
+        eventId: selectedEventId,
         answers: payloadAnswers
       });
 
@@ -149,11 +156,14 @@ const StudentFeedback = () => {
           className="w-full px-3.5 py-3 rounded-xl bg-slate-50 dark:bg-navy-900 border border-slate-200 dark:border-slate-800 text-xs sm:text-sm font-semibold focus:ring-2 focus:ring-brand-500 text-slate-900 dark:text-white"
         >
           {registrations.length === 0 && <option value="">No completed events available</option>}
-          {registrations.map((r) => (
-            <option key={r.event_id} value={r.event_id}>
-              {r.event_title} ({new Date(r.event_date).toLocaleDateString()})
-            </option>
-          ))}
+          {registrations.map((r) => {
+            const evId = r.event_id || r.eventId;
+            return (
+              <option key={r.id || evId} value={evId}>
+                {r.event_title || r.eventTitle} ({r.event_date ? new Date(r.event_date).toLocaleDateString() : 'Campus'})
+              </option>
+            );
+          })}
         </select>
       </div>
 
