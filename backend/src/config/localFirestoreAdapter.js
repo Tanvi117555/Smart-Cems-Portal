@@ -405,6 +405,72 @@ const localAuth = {
     // Default to student
     return { uid: 'student-uid', email: 'student.alex@cems.edu', role: 'student' };
   },
+  getUserByEmail: async (email) => {
+    const cleanEmail = (email || '').toLowerCase().trim();
+    const user = Object.values(store.users || {}).find(u => (u.email || '').toLowerCase().trim() === cleanEmail);
+    if (!user) {
+      const err = new Error('No user record found for given email');
+      err.code = 'auth/user-not-found';
+      throw err;
+    }
+    return {
+      uid: user.uid || user.id,
+      email: user.email,
+      displayName: user.name || user.displayName,
+      customClaims: { role: user.role }
+    };
+  },
+  getUser: async (uid) => {
+    const user = store.users && store.users[uid];
+    if (!user) {
+      const err = new Error('No user record found for given uid');
+      err.code = 'auth/user-not-found';
+      throw err;
+    }
+    return {
+      uid: user.uid || user.id,
+      email: user.email,
+      displayName: user.name || user.displayName,
+      customClaims: { role: user.role }
+    };
+  },
+  createUser: async (props) => {
+    const uid = props.uid || `user_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const newUser = {
+      uid,
+      id: uid,
+      email: (props.email || '').toLowerCase().trim(),
+      name: props.displayName || props.name || 'User',
+      role: 'student',
+      status: 'active',
+      createdAt: new Date().toISOString()
+    };
+    if (!store.users) store.users = {};
+    store.users[uid] = newUser;
+    saveStore();
+    return {
+      uid,
+      email: newUser.email,
+      displayName: newUser.name,
+      customClaims: { role: newUser.role }
+    };
+  },
+  updateUser: async (uid, props) => {
+    if (store.users && store.users[uid]) {
+      if (props.displayName) store.users[uid].name = props.displayName;
+      if (props.email) store.users[uid].email = props.email.toLowerCase().trim();
+      saveStore();
+    }
+    return true;
+  },
+  createCustomToken: async (uid, claims = {}) => {
+    const user = (store.users && store.users[uid]) || { email: 'user@cems.edu', role: claims.role || 'student' };
+    return jwt.sign(
+      { uid, id: uid, email: user.email, role: claims.role || user.role || 'student', ...claims },
+      process.env.JWT_SECRET || 'cems_super_secret_jwt_key_2026_production_grade_token_secure',
+      { expiresIn: '7d' }
+    );
+  },
   setCustomUserClaims: async (uid, claims) => {
     if (store.users[uid]) {
       store.users[uid] = { ...store.users[uid], ...claims };

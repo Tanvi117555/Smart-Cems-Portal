@@ -73,6 +73,7 @@ const AdminDashboard = () => {
     try {
       setActionLoading(rejectModal.eventId);
       const res = await api.patch(`/events/${rejectModal.eventId}/reject`, {
+        reason: rejectModal.reason.trim(),
         rejection_reason: rejectModal.reason.trim()
       });
       if (res?.success || res?.data?.success) {

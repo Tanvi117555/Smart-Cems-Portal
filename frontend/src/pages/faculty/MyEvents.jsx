@@ -174,20 +174,21 @@ const MyEvents = () => {
                     <ImageIcon className="w-3.5 h-3.5 text-purple-500" />
                     <span>Gallery</span>
                   </Link>
-                  <a
-                    href={`/api/reports/event/${e.id}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-100 dark:bg-navy-800 hover:bg-emerald-50 text-slate-700 dark:text-slate-200 hover:text-emerald-600 flex items-center gap-1.5"
+                  <button
+                    onClick={() => {
+                      const token = localStorage.getItem('cems_token');
+                      window.open(`/api/reports/event/${e.id}?token=${token || ''}`, '_blank');
+                    }}
+                    className="px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-100 dark:bg-navy-800 hover:bg-emerald-50 text-slate-700 dark:text-slate-200 hover:text-emerald-600 flex items-center gap-1.5 transition-colors"
                   >
                     <FileText className="w-3.5 h-3.5 text-emerald-500" />
                     <span>PDF Report</span>
-                  </a>
+                  </button>
                 </div>
 
                 <div className="flex items-center gap-2">
                   <Link
-                    to={`/faculty/events/edit/${e.id}`}
+                    to={`/faculty/events/${e.id}/edit`}
                     className="p-2 rounded-xl text-slate-500 hover:text-brand-600 hover:bg-slate-100 dark:hover:bg-navy-800"
                     title="Edit event"
                   >

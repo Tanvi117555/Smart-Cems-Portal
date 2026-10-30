@@ -69,15 +69,16 @@ const RegistrationSuccess = () => {
           </div>
 
           <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row gap-3">
-            <a
-              href={`/api/reports/receipt/${regId}`}
-              target="_blank"
-              rel="noreferrer"
+            <button
+              onClick={() => {
+                const token = localStorage.getItem('cems_token');
+                window.open(`/api/reports/receipt/${regId}?token=${token || ''}`, '_blank');
+              }}
               className="flex-1 py-3 px-4 rounded-xl text-xs font-bold text-white bg-gradient-brand shadow-glow-primary hover:opacity-95 flex items-center justify-center gap-2 transition-all"
             >
               <Download className="w-4 h-4" />
               <span>Download PDF Ticket</span>
-            </a>
+            </button>
             <Link
               to="/student/registrations"
               className="flex-1 py-3 px-4 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-navy-800 hover:bg-slate-200 dark:hover:bg-navy-700 flex items-center justify-center gap-1.5 transition-all text-center"

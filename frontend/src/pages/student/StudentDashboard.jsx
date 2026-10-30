@@ -173,15 +173,17 @@ const StudentDashboard = () => {
                   <span className="text-xs font-bold">
                     {reg.is_paid ? `Payment: ${(reg.payment_status || 'PENDING').toUpperCase()}` : 'Free Pass'}
                   </span>
-                  <a
-                    href={`/api/reports/receipt/${reg.registration_id}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="px-3 py-1.5 rounded-xl text-xs font-bold bg-brand-50 dark:bg-brand-950 text-brand-600 dark:text-brand-400 hover:bg-brand-100 flex items-center gap-1.5"
+                  <button
+                    onClick={() => {
+                      const token = localStorage.getItem('cems_token');
+                      const regCode = reg.registration_id || reg.registrationId || reg.id;
+                      window.open(`/api/reports/receipt/${regCode}?token=${token || ''}`, '_blank');
+                    }}
+                    className="px-3 py-1.5 rounded-xl text-xs font-bold bg-brand-50 dark:bg-brand-950 text-brand-600 dark:text-brand-400 hover:bg-brand-100 flex items-center gap-1.5 transition-colors"
                   >
                     <Download className="w-3.5 h-3.5" />
                     <span>Download PDF</span>
-                  </a>
+                  </button>
                 </div>
               </div>
             ))}

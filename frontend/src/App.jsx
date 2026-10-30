@@ -92,6 +92,7 @@ function App() {
         <Route path="events" element={<MyEvents />} />
         <Route path="events/create" element={<CreateEvent />} />
         <Route path="events/:id/edit" element={<CreateEvent isEdit={true} />} />
+        <Route path="events/edit/:id" element={<CreateEvent isEdit={true} />} />
         <Route path="events/:id/participants" element={<EventParticipants />} />
         <Route path="participants" element={<EventParticipants />} />
         <Route path="scan-qr" element={<QRScannerPage />} />

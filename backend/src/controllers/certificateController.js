@@ -101,20 +101,35 @@ const verifyCertificate = async (req, res) => {
   try {
     const { certificateId } = req.params;
 
-    const certSnapshot = await db.collection('certificates')
-      .where('certificateId', '==', certificateId)
-      .limit(1)
-      .get();
+    let certData = null;
+    const directDoc = await db.collection('certificates').doc(certificateId).get();
+    if (directDoc.exists) {
+      certData = { id: directDoc.id, ...directDoc.data() };
+    } else {
+      let certSnapshot = await db.collection('certificates')
+        .where('certificateId', '==', certificateId)
+        .limit(1)
+        .get();
 
-    if (certSnapshot.empty) {
+      if (certSnapshot.empty) {
+        certSnapshot = await db.collection('certificates')
+          .where('certificateCode', '==', certificateId)
+          .limit(1)
+          .get();
+      }
+
+      if (!certSnapshot.empty) {
+        certData = { id: certSnapshot.docs[0].id, ...certSnapshot.docs[0].data() };
+      }
+    }
+
+    if (!certData) {
       return res.status(404).json({
         success: false,
         valid: false,
         message: 'Certificate not found or invalid.'
       });
     }
-
-    const certData = certSnapshot.docs[0].data();
 
     return res.json({
       success: true,
@@ -158,16 +173,31 @@ const downloadCertificatePDF = async (req, res) => {
   try {
     const { certificateId } = req.params;
 
-    const certSnapshot = await db.collection('certificates')
-      .where('certificateId', '==', certificateId)
-      .limit(1)
-      .get();
+    let cert = null;
+    const directDoc = await db.collection('certificates').doc(certificateId).get();
+    if (directDoc.exists) {
+      cert = { id: directDoc.id, ...directDoc.data() };
+    } else {
+      let certSnapshot = await db.collection('certificates')
+        .where('certificateId', '==', certificateId)
+        .limit(1)
+        .get();
 
-    if (certSnapshot.empty) {
-      return res.status(404).json({ success: false, message: 'Certificate not found.' });
+      if (certSnapshot.empty) {
+        certSnapshot = await db.collection('certificates')
+          .where('certificateCode', '==', certificateId)
+          .limit(1)
+          .get();
+      }
+
+      if (!certSnapshot.empty) {
+        cert = { id: certSnapshot.docs[0].id, ...certSnapshot.docs[0].data() };
+      }
     }
 
-    const cert = certSnapshot.docs[0].data();
+    if (!cert) {
+      return res.status(404).json({ success: false, message: 'Certificate not found.' });
+    }
 
     // Generate Verification QR Code Buffer
     const verificationUrl = `${req.headers.origin || 'http://localhost:5173'}/verify-certificate/${cert.certificateId}`;

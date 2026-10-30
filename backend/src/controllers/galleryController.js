@@ -168,8 +168,8 @@ const deleteGalleryImage = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Image not found in gallery.' });
     }
 
-    const imgDoc = await targetDocRef.get();
-    if (req.user.role !== 'admin' && imgDoc.data().uploaded_by !== req.user.id) {
+    const uploader = imgDoc.data().uploaded_by;
+    if (req.user.role !== 'admin' && uploader !== req.user.id && uploader !== req.user.uid) {
       return res.status(403).json({ success: false, message: 'Unauthorized to delete this photo.' });
     }
 
