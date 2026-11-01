@@ -168,7 +168,7 @@ const submitFeedbackResponse = async (req, res) => {
     const studentId = req.user.id;
     const formId = req.body.formId || req.body.form_id;
     const eventId = req.body.eventId || req.body.event_id;
-    const answers = req.body.answers;
+    const answers = req.body.answers || req.body.responses;
 
     if (!formId || !answers || !Array.isArray(answers)) {
       return res.status(400).json({ success: false, message: 'Form ID and answers array are required.' });

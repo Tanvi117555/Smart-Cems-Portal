@@ -24,5 +24,7 @@ router.post('/submit', verifyToken, authorizeRoles('student'), submitFeedbackRes
 // Analytics / Results retrieval aliases (Faculty / Admin)
 router.get('/analytics/:eventId', verifyToken, authorizeRoles('faculty', 'admin'), getFeedbackAnalytics);
 router.get('/results/:eventId', verifyToken, authorizeRoles('faculty', 'admin'), getFeedbackAnalytics);
+router.get('/event/:eventId/analytics', verifyToken, authorizeRoles('faculty', 'admin'), getFeedbackAnalytics);
+router.get('/event/:eventId/results', verifyToken, authorizeRoles('faculty', 'admin'), getFeedbackAnalytics);
 
 module.exports = router;

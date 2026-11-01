@@ -17,12 +17,16 @@ const getEventReportPDF = async (req, res) => {
     const event = { id: eventDoc.id, ...eventDoc.data() };
 
     // Authorization: Admin or Event Organizer
+    const userEmail = (req.user.email || '').toLowerCase();
+    const orgEmail = (event.contactEmail || event.organizerEmail || '').toLowerCase();
     const isOwner = req.user.role === 'admin' ||
       event.organizerId === req.user.id ||
       event.organizer_id === req.user.id ||
       event.organizerId === req.user.uid ||
       event.organizer_id === req.user.uid ||
-      (req.user.email === 'faculty.cs@cems.edu' && (event.organizer_id === 'faculty-uid' || event.organizerId === 'faculty-uid'));
+      (orgEmail && orgEmail === userEmail) ||
+      (['faculty.cs@cems.edu', 'faculty@cems.edu'].includes(userEmail) &&
+        ['faculty-uid', 'faculty-cs-uid', 'kzf23zs6iUXerO8Uaq9lms7km1C3'].includes(event.organizerId || event.organizer_id));
 
     if (!isOwner) {
       return res.status(403).json({ success: false, message: 'Unauthorized to download report for this event.' });
@@ -146,13 +150,16 @@ const exportParticipantsExcel = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Event not found.' });
     }
 
-    const event = eventDoc.data();
+    const userEmail = (req.user.email || '').toLowerCase();
+    const orgEmail = (event.contactEmail || event.organizerEmail || '').toLowerCase();
     const isOwner = req.user.role === 'admin' ||
       event.organizerId === req.user.id ||
       event.organizer_id === req.user.id ||
       event.organizerId === req.user.uid ||
       event.organizer_id === req.user.uid ||
-      (req.user.email === 'faculty.cs@cems.edu' && (event.organizer_id === 'faculty-uid' || event.organizerId === 'faculty-uid'));
+      (orgEmail && orgEmail === userEmail) ||
+      (['faculty.cs@cems.edu', 'faculty@cems.edu'].includes(userEmail) &&
+        ['faculty-uid', 'faculty-cs-uid', 'kzf23zs6iUXerO8Uaq9lms7km1C3'].includes(event.organizerId || event.organizer_id));
 
     if (!isOwner) {
       return res.status(403).json({ success: false, message: 'Unauthorized.' });

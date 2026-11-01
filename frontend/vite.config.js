@@ -15,6 +15,62 @@ export default defineConfig({
       '/uploads': {
         target: 'http://localhost:5000',
         changeOrigin: true
+      },
+      '/events': {
+        target: 'http://localhost:5000',
+        changeOrigin: true
+      },
+      '/departments': {
+        target: 'http://localhost:5000',
+        changeOrigin: true
+      },
+      '/categories': {
+        target: 'http://localhost:5000',
+        changeOrigin: true
+      },
+      '/meta': {
+        target: 'http://localhost:5000',
+        changeOrigin: true
+      },
+      '/auth': {
+        target: 'http://localhost:5000',
+        changeOrigin: true
+      },
+      '/registrations': {
+        target: 'http://localhost:5000',
+        changeOrigin: true
+      },
+      '/payments': {
+        target: 'http://localhost:5000',
+        changeOrigin: true
+      },
+      '/attendance': {
+        target: 'http://localhost:5000',
+        changeOrigin: true
+      },
+      '/feedback': {
+        target: 'http://localhost:5000',
+        changeOrigin: true
+      },
+      '/certificates': {
+        target: 'http://localhost:5000',
+        changeOrigin: true
+      },
+      '/gallery': {
+        target: 'http://localhost:5000',
+        changeOrigin: true
+      },
+      '/notifications': {
+        target: 'http://localhost:5000',
+        changeOrigin: true
+      },
+      '/reports': {
+        target: 'http://localhost:5000',
+        changeOrigin: true
+      },
+      '/users': {
+        target: 'http://localhost:5000',
+        changeOrigin: true
       }
     }
   }

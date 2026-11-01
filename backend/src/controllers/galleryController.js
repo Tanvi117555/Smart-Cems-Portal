@@ -26,7 +26,7 @@ const uploadGalleryImages = async (req, res) => {
     // Process files uploaded via multipart FormData (multer)
     if (req.files && req.files.length > 0) {
       req.files.forEach(file => {
-        const fileUrl = `/uploads/${file.filename}`;
+        const fileUrl = `/uploads/gallery/${file.filename}`;
         imageList.push({ imageUrl: fileUrl, caption: caption || file.originalname });
       });
     }
@@ -168,7 +168,12 @@ const deleteGalleryImage = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Image not found in gallery.' });
     }
 
-    const uploader = imgDoc.data().uploaded_by;
+    const targetDoc = await targetDocRef.get();
+    if (!targetDoc.exists) {
+      return res.status(404).json({ success: false, message: 'Image record not found.' });
+    }
+
+    const uploader = targetDoc.data().uploaded_by;
     if (req.user.role !== 'admin' && uploader !== req.user.id && uploader !== req.user.uid) {
       return res.status(403).json({ success: false, message: 'Unauthorized to delete this photo.' });
     }

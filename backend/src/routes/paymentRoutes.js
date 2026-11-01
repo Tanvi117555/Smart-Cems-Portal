@@ -9,9 +9,9 @@ const {
 const { verifyToken, authorizeRoles } = require('../middleware/authMiddleware');
 const upload = require('../middleware/uploadMiddleware');
 
-router.post('/', verifyToken, authorizeRoles('student'), upload.single('screenshot'), submitPayment);
+router.post('/', verifyToken, authorizeRoles('student', 'faculty', 'admin'), upload.single('screenshot'), submitPayment);
 router.patch('/:id/verify', verifyToken, authorizeRoles('faculty', 'admin'), verifyPayment);
 router.patch('/:id/reject', verifyToken, authorizeRoles('faculty', 'admin'), rejectPayment);
-router.get('/', verifyToken, authorizeRoles('admin'), getAllPayments);
+router.get('/', verifyToken, authorizeRoles('admin', 'faculty'), getAllPayments);
 
 module.exports = router;

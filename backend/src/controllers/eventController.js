@@ -650,17 +650,21 @@ const rejectEvent = async (req, res) => {
 const getMyEvents = async (req, res) => {
   try {
     const userId = req.user.id;
+    const userEmail = (req.user.email || '').toLowerCase();
     const snapshot = await db.collection('events').get();
     const events = [];
 
     snapshot.forEach(doc => {
       const d = doc.data();
+      const orgEmail = (d.contactEmail || d.organizerEmail || '').toLowerCase();
       const isOwner = req.user.role === 'admin' ||
         d.organizerId === userId ||
         d.organizer_id === userId ||
         d.organizerId === req.user.uid ||
         d.organizer_id === req.user.uid ||
-        (req.user.email === 'faculty.cs@cems.edu' && (d.organizer_id === 'faculty-uid' || d.organizerId === 'faculty-uid'));
+        (orgEmail && orgEmail === userEmail) ||
+        (['faculty.cs@cems.edu', 'faculty@cems.edu'].includes(userEmail) &&
+          ['faculty-uid', 'faculty-cs-uid', 'kzf23zs6iUXerO8Uaq9lms7km1C3'].includes(d.organizerId || d.organizer_id));
 
       if (isOwner) {
         events.push({
@@ -668,6 +672,15 @@ const getMyEvents = async (req, res) => {
           ...d,
           title: d.title || d.event_title,
           event_title: d.title || d.event_title,
+          bannerImage: d.bannerImage || d.image || '/assets/event-placeholder.jpg',
+          image: d.bannerImage || d.image || '/assets/event-placeholder.jpg',
+          date: d.date || d.event_date,
+          start_time: d.startTime || d.start_time,
+          end_time: d.endTime || d.end_time,
+          venue: d.venue,
+          fee: d.fee !== undefined ? d.fee : (d.registration_fee || 0),
+          registration_fee: d.fee !== undefined ? d.fee : (d.registration_fee || 0),
+          is_paid: d.is_paid || d.isPaid || (parseFloat(d.fee || d.registration_fee) > 0),
           seatsFilled: d.seatsFilled || d.registered_count || 0,
           registered_count: d.seatsFilled || d.registered_count || 0,
           maxParticipants: d.maxParticipants || d.max_participants || 100,

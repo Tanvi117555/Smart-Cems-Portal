@@ -9,6 +9,8 @@ const {
 const { verifyToken, authorizeRoles } = require('../middleware/authMiddleware');
 
 router.get('/event/:eventId', verifyToken, authorizeRoles('faculty', 'admin'), getEventReportPDF);
+router.get('/events/:eventId', verifyToken, authorizeRoles('faculty', 'admin'), getEventReportPDF);
+router.get('/events/:eventId/pdf', verifyToken, authorizeRoles('faculty', 'admin'), getEventReportPDF);
 router.get('/receipt/:regId', verifyToken, getRegistrationTicketPDF);
 router.get('/export/excel/:eventId', verifyToken, authorizeRoles('faculty', 'admin'), exportParticipantsExcel);
 router.get('/export/csv/:eventId', verifyToken, authorizeRoles('faculty', 'admin'), exportParticipantsCSV);

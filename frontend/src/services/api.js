@@ -28,6 +28,10 @@ api.interceptors.request.use(
           config.headers.Authorization = `Bearer ${cachedToken}`;
         }
       }
+      // Prevent redundant double '/api/api' if caller includes /api in url
+      if (config.url && config.url.startsWith('/api/')) {
+        config.url = config.url.substring(4);
+      }
     } catch (e) {
       console.warn('Could not attach token:', e.message);
     }

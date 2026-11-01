@@ -5,20 +5,26 @@ const { db } = require('../config/firebase');
  */
 const getNotifications = async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userIds = [req.user.id, req.user.uid, req.user.email].filter(Boolean);
+    if (req.user.role === 'faculty') userIds.push('faculty-uid', 'faculty-cs-uid', 'kzf23zs6iUXerO8Uaq9lms7km1C3');
+    if (req.user.role === 'admin') userIds.push('admin-uid', '2sTo0osVxXPpdX1TABLGP1IRv5S2');
+    if (req.user.role === 'student') userIds.push('student-uid', 'xhxp8HvBVgfeWSLp2HTkN29qUeb2');
 
-    const snapshot = await db.collection('notifications')
-      .where('userId', '==', userId)
-      .limit(50)
-      .get();
+    const snapshot = await db.collection('notifications').get();
 
     const notifications = [];
     let unreadCount = 0;
 
     snapshot.forEach(doc => {
       const data = { id: doc.id, ...doc.data() };
-      notifications.push(data);
-      if (!data.isRead) unreadCount++;
+      const matchesUser = userIds.includes(data.userId) || 
+        (data.forRole && data.forRole === req.user.role) ||
+        (data.targetRole && data.targetRole === req.user.role);
+
+      if (matchesUser) {
+        notifications.push(data);
+        if (!data.isRead) unreadCount++;
+      }
     });
 
     notifications.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
@@ -26,7 +32,7 @@ const getNotifications = async (req, res) => {
     return res.json({
       success: true,
       unreadCount,
-      notifications
+      notifications: notifications.slice(0, 50)
     });
   } catch (error) {
     console.error('GetNotifications Error:', error);
@@ -40,7 +46,10 @@ const getNotifications = async (req, res) => {
 const markAsRead = async (req, res) => {
   try {
     const { id } = req.params;
-    const userId = req.user.id;
+    const userIds = [req.user.id, req.user.uid, req.user.email].filter(Boolean);
+    if (req.user.role === 'faculty') userIds.push('faculty-uid', 'faculty-cs-uid', 'kzf23zs6iUXerO8Uaq9lms7km1C3');
+    if (req.user.role === 'admin') userIds.push('admin-uid', '2sTo0osVxXPpdX1TABLGP1IRv5S2');
+    if (req.user.role === 'student') userIds.push('student-uid', 'xhxp8HvBVgfeWSLp2HTkN29qUeb2');
 
     const docRef = db.collection('notifications').doc(id);
     const doc = await docRef.get();
@@ -49,7 +58,8 @@ const markAsRead = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Notification not found.' });
     }
 
-    if (doc.data().userId !== userId) {
+    const nData = doc.data();
+    if (!userIds.includes(nData.userId) && req.user.role !== 'admin') {
       return res.status(403).json({ success: false, message: 'Unauthorized.' });
     }
 
@@ -70,21 +80,27 @@ const markAsRead = async (req, res) => {
  */
 const markAllAsRead = async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userIds = [req.user.id, req.user.uid, req.user.email].filter(Boolean);
+    if (req.user.role === 'faculty') userIds.push('faculty-uid', 'faculty-cs-uid', 'kzf23zs6iUXerO8Uaq9lms7km1C3');
+    if (req.user.role === 'admin') userIds.push('admin-uid', '2sTo0osVxXPpdX1TABLGP1IRv5S2');
+    if (req.user.role === 'student') userIds.push('student-uid', 'xhxp8HvBVgfeWSLp2HTkN29qUeb2');
 
-    const snapshot = await db.collection('notifications')
-      .where('userId', '==', userId)
-      .where('isRead', '==', false)
-      .get();
-
+    const snapshot = await db.collection('notifications').get();
     const batch = db.batch();
     const now = new Date().toISOString();
+    let updatedCount = 0;
 
     snapshot.forEach(doc => {
-      batch.update(doc.ref, { isRead: true, readAt: now });
+      const data = doc.data();
+      if ((userIds.includes(data.userId) || req.user.role === 'admin') && !data.isRead) {
+        batch.update(doc.ref, { isRead: true, readAt: now });
+        updatedCount++;
+      }
     });
 
-    await batch.commit();
+    if (updatedCount > 0) {
+      await batch.commit();
+    }
 
     return res.json({ success: true, message: 'All notifications marked as read.' });
   } catch (error) {

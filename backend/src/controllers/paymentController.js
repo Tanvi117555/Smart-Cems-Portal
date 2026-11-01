@@ -33,6 +33,7 @@ const submitPayment = async (req, res) => {
       organizerId = evDoc.data().organizerId;
     }
 
+    const uploadedScreenshot = req.file ? `/uploads/payments/${req.file.filename}` : null;
     const paymentData = {
       registrationId: registration_id,
       registrationCode: reg.registrationId || reg.registration_id,
@@ -43,7 +44,7 @@ const submitPayment = async (req, res) => {
       studentEmail: reg.studentEmail || req.user.email,
       amount: parseFloat(amount) || reg.fee || 0,
       transactionId: transaction_id.trim(),
-      screenshotUrl: screenshot_url || req.body.screenshotUrl || null,
+      screenshotUrl: uploadedScreenshot || screenshot_url || req.body.screenshotUrl || null,
       status: 'pending',
       rejectionReason: null,
       submittedAt: new Date().toISOString(),
@@ -234,11 +235,29 @@ const rejectPayment = async (req, res) => {
 const getAllPayments = async (req, res) => {
   try {
     const snapshot = await db.collection('payments').get();
-    const payments = [];
+    let payments = [];
 
     snapshot.forEach(doc => {
       payments.push({ id: doc.id, ...doc.data() });
     });
+
+    if (req.user.role === 'faculty') {
+      const userEmail = (req.user.email || '').toLowerCase();
+      const evSnap = await db.collection('events').get();
+      const myEventIds = new Set();
+      evSnap.forEach(d => {
+        const ed = d.data();
+        const orgEmail = (ed.contactEmail || ed.organizerEmail || '').toLowerCase();
+        if (ed.organizerId === req.user.id || ed.organizer_id === req.user.id ||
+            ed.organizerId === req.user.uid || ed.organizer_id === req.user.uid ||
+            (orgEmail && orgEmail === userEmail) ||
+            (['faculty.cs@cems.edu', 'faculty@cems.edu'].includes(userEmail) && 
+              ['faculty-uid', 'faculty-cs-uid', 'kzf23zs6iUXerO8Uaq9lms7km1C3'].includes(ed.organizerId || ed.organizer_id))) {
+          myEventIds.add(d.id);
+        }
+      });
+      payments = payments.filter(p => myEventIds.has(p.eventId));
+    }
 
     payments.sort((a, b) => new Date(b.submittedAt || 0) - new Date(a.submittedAt || 0));
 
